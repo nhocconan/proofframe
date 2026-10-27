@@ -13,6 +13,7 @@ await video.waitFor();
 await page.waitForFunction(() => {
   const v = document.querySelector('[data-testid="target-video"]'); return v && v.readyState >= 1;
 }, null, { timeout: 30000 });
+await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
 await page.getByTestId(`check-${aid}`).click();
 await page.waitForFunction(() => {
   const v = document.querySelector('[data-testid="target-video"]'); return v && !v.seeking && v.currentTime > 0;
