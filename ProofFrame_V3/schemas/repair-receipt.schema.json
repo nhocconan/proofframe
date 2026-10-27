@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "AssetBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "media_type": {
+          "enum": [
+            "video",
+            "audio",
+            "image",
+            "document",
+            "composition"
+          ],
+          "title": "Media Type",
+          "type": "string"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        }
+      },
+      "required": [
+        "asset_id",
+        "revision",
+        "sha256",
+        "media_type"
+      ],
+      "title": "AssetBinding",
+      "type": "object"
+    },
+    "Replacement": {
+      "additionalProperties": false,
+      "properties": {
+        "target_asset_id": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Target Asset Id",
+          "type": "string"
+        },
+        "input_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Sha256",
+          "type": "string"
+        },
+        "output": {
+          "$ref": "#/$defs/AssetBinding"
+        }
+      },
+      "required": [
+        "target_asset_id",
+        "input_sha256",
+        "output"
+      ],
+      "title": "Replacement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "plan_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Sha256",
+      "type": "string"
+    },
+    "replacements": {
+      "items": {
+        "$ref": "#/$defs/Replacement"
+      },
+      "minItems": 1,
+      "title": "Replacements",
+      "type": "array"
+    },
+    "execution_mode": {
+      "enum": [
+        "real",
+        "staged_fixture"
+      ],
+      "title": "Execution Mode",
+      "type": "string"
+    }
+  },
+  "required": [
+    "plan_sha256",
+    "replacements",
+    "execution_mode"
+  ],
+  "title": "RepairReceipt",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

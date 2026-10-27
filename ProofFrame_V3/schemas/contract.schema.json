@@ -1,0 +1,270 @@
+{
+  "$defs": {
+    "Assertion": {
+      "additionalProperties": false,
+      "properties": {
+        "assertion_id": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Assertion Id",
+          "type": "string"
+        },
+        "source_pointer": {
+          "minLength": 1,
+          "title": "Source Pointer",
+          "type": "string"
+        },
+        "target_asset_id": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Target Asset Id",
+          "type": "string"
+        },
+        "reference_asset_ids": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "title": "Reference Asset Ids",
+          "type": "array"
+        },
+        "predicate": {
+          "minLength": 1,
+          "title": "Predicate",
+          "type": "string"
+        },
+        "expected": {
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        },
+        "blocking": {
+          "default": true,
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "stage": {
+          "default": "shot",
+          "enum": [
+            "preflight",
+            "shot",
+            "assembly"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "depends_on": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "approved_exclusion": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved Exclusion"
+        },
+        "global_sentinel": {
+          "default": false,
+          "title": "Global Sentinel",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "assertion_id",
+        "source_pointer",
+        "target_asset_id",
+        "predicate",
+        "expected"
+      ],
+      "title": "Assertion",
+      "type": "object"
+    },
+    "AssetSpec": {
+      "additionalProperties": false,
+      "description": "Logical slot in approved intent; output revisions live in run manifests.",
+      "properties": {
+        "asset_id": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "media_type": {
+          "enum": [
+            "video",
+            "audio",
+            "image",
+            "document",
+            "composition"
+          ],
+          "title": "Media Type",
+          "type": "string"
+        },
+        "role": {
+          "default": "output",
+          "enum": [
+            "output",
+            "canonical_reference"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "canonical_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canonical Sha256"
+        }
+      },
+      "required": [
+        "asset_id",
+        "media_type"
+      ],
+      "title": "AssetSpec",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "description": "Availability/inspection requirement, never a statistical accuracy claim.\n\n'interval_scan' is reserved for exhaustive instrumented scans. A native\nvideo upload or a few frames cannot claim exhaustive visual inspection.",
+      "properties": {
+        "kind": {
+          "default": "sampled",
+          "enum": [
+            "artifact",
+            "sampled",
+            "interval_scan"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "minimum_items": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Items",
+          "type": "integer"
+        },
+        "start_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Ms"
+        },
+        "end_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Ms"
+        }
+      },
+      "title": "Coverage",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "proofframe.contract.v0.1",
+      "default": "proofframe.contract.v0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "contract_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "profile": {
+      "enum": [
+        "film",
+        "brand",
+        "educational"
+      ],
+      "title": "Profile",
+      "type": "string"
+    },
+    "profile_revision": {
+      "minLength": 1,
+      "title": "Profile Revision",
+      "type": "string"
+    },
+    "assets": {
+      "items": {
+        "$ref": "#/$defs/AssetSpec"
+      },
+      "minItems": 1,
+      "title": "Assets",
+      "type": "array"
+    },
+    "assertions": {
+      "items": {
+        "$ref": "#/$defs/Assertion"
+      },
+      "minItems": 1,
+      "title": "Assertions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_id",
+    "revision",
+    "tenant_id",
+    "profile",
+    "profile_revision",
+    "assets",
+    "assertions"
+  ],
+  "title": "Contract",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

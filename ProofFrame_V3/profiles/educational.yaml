@@ -1,0 +1,21 @@
+profile: educational
+revision: draft-v1
+status: design_example_not_implemented
+publication: human_only
+mandatory_coverage_before_triage: true
+approved_inputs:
+  - learning_objectives
+  - approved_facts_and_examples
+  - approved_narration
+  - planned_vocabulary_explanations
+priority_checks:
+  - required_example_present
+  - narration_matches_illustrated_object_or_action
+  - critical_explanation_step_present
+  - subtitle_narration_agreement
+advisory_only:
+  - vocabulary_load
+  - explanation_pace
+  - abstraction_level
+comprehension_certification: not_supported
+feedback_authority: parent_teacher_or_qualified_editor

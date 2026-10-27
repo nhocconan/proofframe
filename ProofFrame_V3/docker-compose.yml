@@ -1,0 +1,65 @@
+# ProofFrame local stack. Private ports bind to loopback only.
+# Paid Meta calls are bounded by PROOFFRAME_MAX_*; key comes from ../.env (META_DEV_API).
+name: proofframe
+
+x-app: &app
+  build: { context: ., dockerfile: docker/app.Dockerfile }
+  image: proofframe-app:dev
+  env_file: [../.env]
+  environment: &appenv
+    DATABASE_URL: postgresql+psycopg://proofframe:proofframe@db:5432/proofframe
+    PROOFFRAME_MODE: meta_hackathon
+    PROOFFRAME_ALLOW_PAID_CALLS: "true"
+    PROOFFRAME_MAX_PROJECT_COST_USD: "10"
+    PROOFFRAME_MAX_RUN_COST_USD: "2"
+    PROOFFRAME_MAX_REPAIR_ATTEMPTS: "2"
+    PROOFFRAME_PROBE_SPEND_USD: "0.04597"   # Gate 0 probes, pre-seeded into the ledger
+    PROOFFRAME_TENANT_ID: demo-tenant
+    PROOFFRAME_API_TOKEN: ${PROOFFRAME_API_TOKEN:-dev-local-token}
+    PROOFFRAME_DATA_DIR: /data
+    PROOFFRAME_DROPBOX_DIR: /dropbox
+    META_BASE_URL: https://api.meta.ai/v1
+  volumes:
+    - pf_data:/data
+    - ./dropbox:/dropbox
+    - ../media:/media:ro
+  depends_on:
+    db: { condition: service_healthy }
+  read_only: true
+  tmpfs: [/tmp]
+  cpus: 4
+  mem_limit: 4g
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: proofframe, POSTGRES_PASSWORD: proofframe, POSTGRES_DB: proofframe }
+    volumes: [pf_db:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U proofframe"], interval: 2s, retries: 30 }
+
+  api:
+    <<: *app
+    command: ["uvicorn", "proofframe.api.app:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports: ["127.0.0.1:8080:8080"]
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "proofframe.worker"]
+
+  executor:
+    <<: *app
+    command: ["python", "-m", "proofframe.repair.executor"]
+    profiles: [repair]
+
+  web:
+    build: { context: ./web, dockerfile: Dockerfile }
+    image: proofframe-web:dev
+    environment:
+      PROOFFRAME_API_URL: http://api:8080
+      PROOFFRAME_API_TOKEN: ${PROOFFRAME_API_TOKEN:-dev-local-token}
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pf_data: {}
+  pf_db: {}

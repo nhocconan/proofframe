@@ -1,0 +1,45 @@
+{
+  "schema_version": "proofframe.contract.v0.1",
+  "contract_id": "synthetic-demo",
+  "revision": 1,
+  "tenant_id": "demo-tenant",
+  "profile": "educational",
+  "profile_revision": "example-not-calibrated-v1",
+  "assets": [
+    {
+      "asset_id": "shot-01",
+      "media_type": "video",
+      "role": "output",
+      "canonical_sha256": null
+    },
+    {
+      "asset_id": "approved-reference",
+      "media_type": "image",
+      "role": "canonical_reference",
+      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "assertions": [
+    {
+      "assertion_id": "wardrobe-01",
+      "source_pointer": "/lesson/illustrated_example",
+      "target_asset_id": "shot-01",
+      "reference_asset_ids": [
+        "approved-reference"
+      ],
+      "predicate": "narration_matches_visible_count",
+      "expected": "Show two apples while narration says two apples",
+      "blocking": true,
+      "stage": "shot",
+      "depends_on": [],
+      "coverage": {
+        "kind": "sampled",
+        "minimum_items": 1,
+        "start_ms": null,
+        "end_ms": null
+      },
+      "approved_exclusion": null,
+      "global_sentinel": false
+    }
+  ]
+}

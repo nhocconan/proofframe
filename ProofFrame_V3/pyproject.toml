@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proofframe"
+version = "0.1.0"
+description = "Original typed policy seed for the ProofFrame V3 engineering handoff; not a video detector"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.10,<3",
+  "httpx==0.28.1",
+  "fastapi==0.115.12",
+  "uvicorn[standard]==0.34.2",
+  "python-multipart==0.0.20",
+  "sqlalchemy==2.0.40",
+  "psycopg[binary]==3.2.6",
+]
+
+[project.scripts]
+proofframe = "proofframe.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "jsonschema>=4.20,<5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -1,0 +1,22 @@
+profile: brand
+revision: draft-v1
+status: design_example_not_implemented
+publication: human_only
+mandatory_coverage_before_triage: true
+approved_inputs:
+  - brand_kit_revision
+  - original_logo_asset
+  - approved_copy_and_disclaimer
+  - approved_product_truth
+  - layout_and_safe_zone_policy
+priority_checks:
+  - wrong_asset_or_brand_version
+  - exact_approved_copy
+  - required_supplied_disclaimer
+  - actual_layout_clipping
+  - caption_audio_visual_agreement
+repair_preference:
+  - fix_compositor_source
+  - fix_subtitle_or_audio_source
+  - regenerate_only_failed_shot
+unsupported_claims: review_not_certified_compliance

@@ -1,0 +1,142 @@
+{
+  "$defs": {
+    "RepairAction": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Action Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "FIX_COMPOSITE",
+            "FIX_SUBTITLES",
+            "REMIX_AUDIO",
+            "REGENERATE_AUDIO",
+            "PATCH_GENERATION_SPEC",
+            "REGENERATE_SHOT",
+            "EDIT_VIDEO_REGION",
+            "REASSEMBLE",
+            "HUMAN_REVIEW"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "target_asset_id": {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Target Asset Id",
+          "type": "string"
+        },
+        "expected_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Sha256",
+          "type": "string"
+        },
+        "requested_change": {
+          "minLength": 1,
+          "title": "Requested Change",
+          "type": "string"
+        },
+        "finding_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Finding Ids",
+          "type": "array"
+        },
+        "preserve_assertions": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "title": "Preserve Assertions",
+          "type": "array"
+        },
+        "retest_assertions": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Retest Assertions",
+          "type": "array"
+        },
+        "requires_approval": {
+          "const": true,
+          "default": true,
+          "title": "Requires Approval",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action_id",
+        "action",
+        "target_asset_id",
+        "expected_sha256",
+        "requested_change",
+        "finding_ids",
+        "retest_assertions"
+      ],
+      "title": "RepairAction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "proofframe.repair.v0.1",
+      "default": "proofframe.repair.v0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "plan_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "contract_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Contract Sha256",
+      "type": "string"
+    },
+    "based_on_report_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Based On Report Sha256",
+      "type": "string"
+    },
+    "max_attempts_per_target": {
+      "default": 2,
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Max Attempts Per Target",
+      "type": "integer"
+    },
+    "actions": {
+      "items": {
+        "$ref": "#/$defs/RepairAction"
+      },
+      "minItems": 1,
+      "title": "Actions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "plan_id",
+    "contract_sha256",
+    "based_on_report_sha256",
+    "actions"
+  ],
+  "title": "RepairPlan",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

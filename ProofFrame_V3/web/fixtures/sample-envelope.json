@@ -1,0 +1,186 @@
+{
+ "schema_version": "proofframe.envelope.v0.1",
+ "run": {
+  "run_id": "fixture-run",
+  "run_mode": "synthetic_fixture",
+  "profile": "film",
+  "contract_id": "demo",
+  "contract_revision": 1,
+  "contract_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "started_at": "2026-01-01T00:00:00Z",
+  "finished_at": "2026-01-01T00:01:00Z",
+  "previous_run_id": "fixture-run-0"
+ },
+ "decision": {
+  "decision": "BLOCK",
+  "unresolved": [
+   "lt-02"
+  ],
+  "blocking_failures": [
+   "caption-01"
+  ],
+  "advisory_findings": [],
+  "publish_authorized": false
+ },
+ "assets": [
+  {
+   "asset_id": "shot-01",
+   "revision": 1,
+   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "duration_ms": 60000,
+   "url": "/v1/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+ ],
+ "checks": [
+  {
+   "assertion_id": "caption-01",
+   "status": "FAIL",
+   "blocking": true,
+   "global_sentinel": false,
+   "source_pointer": "/shots/01/lower_third",
+   "predicate": "text_equals",
+   "expected": "ACME Corp",
+   "observed": "ACME Corporation",
+   "observation_question": "What text appears in the lower third?",
+   "scope": {
+    "start_ms": 10000,
+    "end_ms": 25000
+   },
+   "focus": {
+    "start_ms": 12000,
+    "end_ms": 20000
+   },
+   "evidence_ids": [
+    "ev-1"
+   ],
+   "trace_ids": [
+    "tr-1"
+   ],
+   "rationale": "Observed text differs from approved text (synthetic).",
+   "limitations": [
+    "sampled at 1 fps; not exhaustive"
+   ],
+   "regression": {
+    "before": "PASS",
+    "after": "FAIL",
+    "classification": "REGRESSION"
+   }
+  },
+  {
+   "assertion_id": "logo-01",
+   "status": "PASS",
+   "blocking": true,
+   "expected": "Logo top-right",
+   "observed": "Logo top-right",
+   "observation_question": "Where is the logo?",
+   "scope": null,
+   "focus": {
+    "start_ms": 30000,
+    "end_ms": 40000
+   },
+   "evidence_ids": [
+    "ev-2"
+   ],
+   "trace_ids": [
+    "tr-2"
+   ],
+   "rationale": "Match.",
+   "limitations": [],
+   "regression": {
+    "before": "FAIL",
+    "after": "PASS",
+    "classification": "FIXED"
+   }
+  },
+  {
+   "assertion_id": "lt-02",
+   "status": "NOT_CHECKED",
+   "blocking": true,
+   "expected": "Legal text present",
+   "observed": null,
+   "observation_question": "Is there small print?",
+   "scope": null,
+   "focus": null,
+   "evidence_ids": [],
+   "trace_ids": [],
+   "rationale": "Budget exhausted before check ran.",
+   "limitations": [
+    "not executed"
+   ],
+   "regression": null
+  }
+ ],
+ "evidence": [
+  {
+   "evidence_id": "ev-1",
+   "asset_id": "shot-01",
+   "kind": "frame",
+   "start_ms": 12000,
+   "end_ms": 12042,
+   "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "url": "/v1/media/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "role": "target",
+   "label": "F3 @ 00:12.000"
+  },
+  {
+   "evidence_id": "ev-2",
+   "asset_id": "shot-01",
+   "kind": "frame",
+   "start_ms": 31000,
+   "end_ms": 31042,
+   "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "url": "/v1/media/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "role": "target",
+   "label": "F9 @ 00:31.000"
+  }
+ ],
+ "traces": [
+  {
+   "trace_id": "tr-1",
+   "provider": "meta",
+   "model": "synthetic",
+   "purpose": "localize",
+   "http_status": 200,
+   "latency_s": 1.5,
+   "usage": {
+    "input_tokens": 100,
+    "output_tokens": 20
+   },
+   "cost_usd": null,
+   "cost_basis": "unknown",
+   "outcome": "ok"
+  },
+  {
+   "trace_id": "tr-2",
+   "provider": "meta",
+   "model": "synthetic",
+   "purpose": "confirm_frames",
+   "http_status": 200,
+   "latency_s": 2.1,
+   "usage": {
+    "input_tokens": 120,
+    "output_tokens": 15
+   },
+   "cost_usd": 0.001,
+   "cost_basis": "usage*list_price",
+   "outcome": "ok"
+  }
+ ],
+ "coverage": {
+  "mandatory": 3,
+  "pass": 1,
+  "fail": 1,
+  "uncertain": 0,
+  "not_checked": 1,
+  "error": 0,
+  "not_applicable": 0
+ },
+ "cost": {
+  "estimated_usd": 0.001,
+  "unknown_cost_calls": 1,
+  "reserved_open_usd": 0.0
+ },
+ "labels": [
+  "SYNTHETIC FIXTURE - not a real verification"
+ ]
+}

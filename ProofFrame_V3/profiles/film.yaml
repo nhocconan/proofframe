@@ -1,0 +1,24 @@
+profile: film
+revision: draft-v1
+status: design_example_not_implemented
+publication: human_only
+routing: task_qualified_not_price_only
+mandatory_coverage_before_triage: true
+approved_inputs:
+  - series_bible
+  - shot_plan
+  - canonical_references
+  - allowed_story_transitions
+  - editorial_transform_policy
+priority_checks:
+  - explicit_wardrobe_or_prop_contradiction
+  - required_event_and_order
+  - dialogue_against_approved_script
+  - unauthorized_retime_or_duplicate_source
+review_only_until_qualified:
+  - cross_angle_character_appearance
+  - audiovisual_lip_sync
+  - artistic_pacing
+max_repair_attempts_per_target: 2
+pass_audit_fraction: 0.10
+# Operational starting choice, not a statistical quality guarantee.

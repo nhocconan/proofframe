@@ -1,0 +1,91 @@
+{
+ "schema_version": "proofframe.contract.v0.1",
+ "contract_id": "tos-long-2min",
+ "revision": 1,
+ "tenant_id": "demo-tenant",
+ "profile": "film",
+ "profile_revision": "film-draft-v1-uncalibrated",
+ "assets": [
+  {
+   "asset_id": "seq-2min",
+   "media_type": "video",
+   "role": "output",
+   "canonical_sha256": null
+  }
+ ],
+ "assertions": [
+  {
+   "assertion_id": "main-title",
+   "source_pointer": "/sequence/main_title",
+   "target_asset_id": "seq-2min",
+   "predicate": "main title card text",
+   "expected": "TEARS OF STEEL",
+   "blocking": true,
+   "stage": "assembly",
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "observation": {
+    "kind": "on_screen_text",
+    "subject": "the stylized film title text shown centered on a black screen",
+    "attribute": "the exact title text",
+    "comparator": "exact_text_nfc"
+   }
+  },
+  {
+   "assertion_id": "sniper-jacket",
+   "source_pointer": "/shots/sniper/wardrobe/jacket",
+   "target_asset_id": "seq-2min",
+   "predicate": "sniper's jacket color",
+   "expected": "blue",
+   "blocking": true,
+   "stage": "shot",
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "observation": {
+    "kind": "visual_attribute",
+    "subject": "the man aiming a scoped rifle from a balcony",
+    "attribute": "the color of his jacket",
+    "comparator": "category_equals",
+    "vocabulary": [
+     "red",
+     "orange",
+     "yellow",
+     "green",
+     "blue",
+     "purple",
+     "pink",
+     "brown",
+     "black",
+     "white",
+     "gray"
+    ]
+   }
+  },
+  {
+   "assertion_id": "tech-duration",
+   "source_pointer": "/delivery/duration_ms",
+   "target_asset_id": "seq-2min",
+   "predicate": "export duration",
+   "expected": "120000",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "artifact",
+    "minimum_items": 1
+   },
+   "observation": {
+    "kind": "technical",
+    "subject": "export container",
+    "attribute": "duration",
+    "comparator": "technical",
+    "technical_metric": "duration_ms",
+    "tolerance": 100
+   }
+  }
+ ]
+}

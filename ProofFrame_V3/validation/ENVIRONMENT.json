@@ -1,0 +1,10 @@
+{
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+  "pydantic": "2.13.5",
+  "pytest": "9.0.2",
+  "jsonschema": "4.26.0",
+  "test_command": "python -m pytest -q",
+  "schema_command": "python scripts/export_schemas_and_examples.py",
+  "scope": "Original contract/policy tests and synthetic JSON only; no media or paid API tests."
+}

@@ -1,0 +1,116 @@
+{
+ "schema_version": "proofframe.contract.v0.1",
+ "contract_id": "my-video-check",
+ "revision": 1,
+ "tenant_id": "demo-tenant",
+ "profile": "film",
+ "profile_revision": "film-draft-v1-uncalibrated",
+ "assets": [
+  {
+   "asset_id": "my-video",
+   "media_type": "video",
+   "role": "output",
+   "canonical_sha256": null
+  }
+ ],
+ "assertions": [
+  {
+   "assertion_id": "title-text",
+   "source_pointer": "/script/title_card",
+   "target_asset_id": "my-video",
+   "predicate": "title card shows the approved text",
+   "expected": "REPLACE WITH EXACT APPROVED TEXT",
+   "blocking": true,
+   "stage": "assembly",
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "scope": {
+    "start_ms": 0,
+    "end_ms": 30000
+   },
+   "observation": {
+    "kind": "on_screen_text",
+    "subject": "REPLACE: where the text appears, e.g. the large white text centered on screen",
+    "attribute": "the exact text",
+    "comparator": "exact_text_nfc"
+   }
+  },
+  {
+   "assertion_id": "wardrobe",
+   "source_pointer": "/characters/lead/wardrobe",
+   "target_asset_id": "my-video",
+   "predicate": "lead's jacket is the approved color",
+   "expected": "blue",
+   "blocking": true,
+   "stage": "shot",
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "observation": {
+    "kind": "visual_attribute",
+    "subject": "REPLACE: neutral description of the person (no expected value here!)",
+    "attribute": "the color of their jacket",
+    "comparator": "category_equals",
+    "vocabulary": [
+     "red",
+     "orange",
+     "yellow",
+     "green",
+     "blue",
+     "purple",
+     "pink",
+     "brown",
+     "black",
+     "white",
+     "gray"
+    ]
+   }
+  },
+  {
+   "assertion_id": "tech-duration",
+   "source_pointer": "/delivery/duration_ms",
+   "target_asset_id": "my-video",
+   "predicate": "export duration",
+   "expected": "240000",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "artifact",
+    "minimum_items": 1
+   },
+   "observation": {
+    "kind": "technical",
+    "subject": "export container",
+    "attribute": "duration",
+    "comparator": "technical",
+    "technical_metric": "duration_ms",
+    "tolerance": 500
+   }
+  },
+  {
+   "assertion_id": "tech-audio",
+   "source_pointer": "/delivery/audio",
+   "target_asset_id": "my-video",
+   "predicate": "export has audio",
+   "expected": "true",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "artifact",
+    "minimum_items": 1
+   },
+   "observation": {
+    "kind": "technical",
+    "subject": "export container",
+    "attribute": "audio stream",
+    "comparator": "technical",
+    "technical_metric": "has_audio"
+   }
+  }
+ ]
+}

@@ -1,0 +1,180 @@
+{
+ "schema_version": "proofframe.contract.v0.1",
+ "contract_id": "tos-bridge-demo",
+ "revision": 1,
+ "tenant_id": "demo-tenant",
+ "profile": "film",
+ "profile_revision": "film-draft-v1-uncalibrated",
+ "assets": [
+  {
+   "asset_id": "shot-01",
+   "media_type": "video",
+   "role": "output",
+   "canonical_sha256": null
+  }
+ ],
+ "assertions": [
+  {
+   "assertion_id": "caption-01",
+   "source_pointer": "/shots/01/lower_third/text",
+   "target_asset_id": "shot-01",
+   "predicate": "approved lower-third caption text is displayed exactly",
+   "expected": "Amsterdam — Thom và Celia trên cầu",
+   "blocking": true,
+   "stage": "shot",
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "scope": {
+    "start_ms": 10000,
+    "end_ms": 25000
+   },
+   "observation": {
+    "kind": "on_screen_text",
+    "subject": "the caption text box overlaid at the bottom of the frame (lower third)",
+    "attribute": "the exact caption text",
+    "comparator": "exact_text_nfc"
+   }
+  },
+  {
+   "assertion_id": "wardrobe-01",
+   "source_pointer": "/shots/01/characters/celia/wardrobe/sleeves",
+   "target_asset_id": "shot-01",
+   "predicate": "woman's jacket sleeves are the approved color",
+   "expected": "blue",
+   "blocking": true,
+   "stage": "shot",
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "scope": {
+    "start_ms": 10000,
+    "end_ms": 25000
+   },
+   "observation": {
+    "kind": "visual_attribute",
+    "subject": "the woman with a mechanical (robotic) hand standing at the bridge railing",
+    "attribute": "the color of her jacket sleeves",
+    "comparator": "category_equals",
+    "vocabulary": [
+     "red",
+     "orange",
+     "yellow",
+     "green",
+     "blue",
+     "purple",
+     "pink",
+     "brown",
+     "black",
+     "white",
+     "gray"
+    ]
+   }
+  },
+  {
+   "assertion_id": "title-01",
+   "source_pointer": "/sequence/title_cards/time_jump",
+   "target_asset_id": "shot-01",
+   "predicate": "time-jump title card shows the approved text",
+   "expected": "40 YEARS LATER",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "scope": {
+    "start_ms": 25000,
+    "end_ms": 34000
+   },
+   "observation": {
+    "kind": "on_screen_text",
+    "subject": "the large white title text centered over the dark city view",
+    "attribute": "the exact title text",
+    "comparator": "exact_text_nfc"
+   }
+  },
+  {
+   "assertion_id": "eyes-01",
+   "source_pointer": "/shots/01/characters/thom/appearance/eyes",
+   "target_asset_id": "shot-01",
+   "predicate": "young man's eye color matches the character bible",
+   "expected": "brown",
+   "blocking": false,
+   "stage": "shot",
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 2
+   },
+   "scope": {
+    "start_ms": 10000,
+    "end_ms": 25000
+   },
+   "observation": {
+    "kind": "visual_attribute",
+    "subject": "the young man with dark hair standing at the bridge railing (left of the woman)",
+    "attribute": "his eye (iris) color",
+    "comparator": "category_equals",
+    "vocabulary": [
+     "red",
+     "orange",
+     "yellow",
+     "green",
+     "blue",
+     "purple",
+     "pink",
+     "brown",
+     "black",
+     "white",
+     "gray"
+    ]
+   }
+  },
+  {
+   "assertion_id": "tech-duration",
+   "source_pointer": "/delivery/duration_ms",
+   "target_asset_id": "shot-01",
+   "predicate": "export duration",
+   "expected": "60000",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "artifact",
+    "minimum_items": 1
+   },
+   "observation": {
+    "kind": "technical",
+    "subject": "export container",
+    "attribute": "duration",
+    "comparator": "technical",
+    "technical_metric": "duration_ms",
+    "tolerance": 100
+   }
+  },
+  {
+   "assertion_id": "tech-audio",
+   "source_pointer": "/delivery/audio",
+   "target_asset_id": "shot-01",
+   "predicate": "export carries the approved audio track",
+   "expected": "true",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "artifact",
+    "minimum_items": 1
+   },
+   "observation": {
+    "kind": "technical",
+    "subject": "export container",
+    "attribute": "audio stream",
+    "comparator": "technical",
+    "technical_metric": "has_audio"
+   }
+  }
+ ]
+}

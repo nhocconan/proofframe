@@ -1,0 +1,45 @@
+{
+  "schema_version": "proofframe.contract.v0.1",
+  "contract_id": "synthetic-demo",
+  "revision": 1,
+  "tenant_id": "demo-tenant",
+  "profile": "brand",
+  "profile_revision": "example-not-calibrated-v1",
+  "assets": [
+    {
+      "asset_id": "shot-01",
+      "media_type": "video",
+      "role": "output",
+      "canonical_sha256": null
+    },
+    {
+      "asset_id": "approved-reference",
+      "media_type": "image",
+      "role": "canonical_reference",
+      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "assertions": [
+    {
+      "assertion_id": "wardrobe-01",
+      "source_pointer": "/brand/approved_copy",
+      "target_asset_id": "shot-01",
+      "reference_asset_ids": [
+        "approved-reference"
+      ],
+      "predicate": "matches_exact_approved_copy",
+      "expected": "Approved demo slogan v1",
+      "blocking": true,
+      "stage": "shot",
+      "depends_on": [],
+      "coverage": {
+        "kind": "sampled",
+        "minimum_items": 1,
+        "start_ms": null,
+        "end_ms": null
+      },
+      "approved_exclusion": null,
+      "global_sentinel": false
+    }
+  ]
+}

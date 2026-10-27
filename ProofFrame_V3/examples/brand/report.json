@@ -1,0 +1,48 @@
+{
+  "schema_version": "proofframe.report.v0.1",
+  "run_id": "fixture-run",
+  "run_mode": "synthetic_fixture",
+  "contract_sha256": "5bd500f6182322e407af4504b486e6172015d4cc205950c79761e44790fe71ca",
+  "assets": [
+    {
+      "asset_id": "shot-01",
+      "revision": 1,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "media_type": "video",
+      "duration_ms": 8000
+    },
+    {
+      "asset_id": "approved-reference",
+      "revision": 1,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "media_type": "image",
+      "duration_ms": null
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "frame-01",
+      "asset_id": "shot-01",
+      "asset_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "kind": "frame",
+      "inspection": "sampled",
+      "uri": "fixture://not-real-media/frame-01",
+      "extractor_version": "synthetic-fixture-v1",
+      "trace_id": "fixture-trace",
+      "start_ms": 2000,
+      "end_ms": 2040
+    }
+  ],
+  "results": [
+    {
+      "assertion_id": "wardrobe-01",
+      "status": "FAIL",
+      "evidence_ids": [
+        "frame-01"
+      ],
+      "rationale": "Illustrative fixture only; no model ran.",
+      "evaluator_version": "synthetic-policy-test-v1"
+    }
+  ]
+}

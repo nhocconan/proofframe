@@ -1,0 +1,17 @@
+{
+  "plan_sha256": "4424910472be05a185d86623742db171f086a82033091a2bdde9ed9a90d127f0",
+  "replacements": [
+    {
+      "target_asset_id": "shot-01",
+      "input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "output": {
+        "asset_id": "shot-01",
+        "revision": 2,
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "media_type": "video",
+        "duration_ms": 8000
+      }
+    }
+  ],
+  "execution_mode": "staged_fixture"
+}

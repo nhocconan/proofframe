@@ -1,0 +1,33 @@
+:root{--bg:#f6f7f9;--fg:#15181d;--mut:#5d6673;--card:#fff;--bd:#d5dae1;--red:#b3261e;--redbg:#fde8e6;--amb:#8a5a00;--ambbg:#fff1cf;--grn:#1b6b34;--grnbg:#dff3e5;--blu:#1f4fa3}
+@media (prefers-color-scheme:dark){:root{--bg:#12151a;--fg:#e8ebf0;--mut:#9aa4b2;--card:#1b2027;--bd:#323a46;--red:#ff8a80;--redbg:#4a1f1c;--amb:#ffd166;--ambbg:#4a3a10;--grn:#7fdc9b;--grnbg:#16361f;--blu:#8ab4ff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.nav{display:flex;gap:16px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--bd)}
+a{color:var(--blu)}
+table{width:100%;border-collapse:collapse;background:var(--card)}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);vertical-align:top}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:12px;margin:12px 0}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-weight:600;font-size:12px;border:1px solid currentColor}
+.s-PASS,.s-FIXED,.s-UNCHANGED_PASS,.s-ELIGIBLE,.s-succeeded{color:var(--grn);background:var(--grnbg)}
+.s-FAIL,.s-ERROR,.s-REGRESSION,.s-BLOCK,.s-failed{color:var(--red);background:var(--redbg)}
+.s-UNCERTAIN,.s-NOT_CHECKED,.s-REVIEW,.s-STILL_FAILING,.s-NOT_COMPARABLE,.s-queued,.s-running{color:var(--amb);background:var(--ambbg)}
+.s-NOT_APPLICABLE,.s-cancelled{color:var(--mut)}
+.mode{padding:6px 12px;font-weight:800;letter-spacing:.05em;border-radius:4px;display:inline-block}
+.mode-live{background:#0b5d1e;color:#fff}.mode-recorded_replay{background:#6b3fa0;color:#fff}
+.mode-synthetic_fixture{background:repeating-linear-gradient(45deg,#444,#444 10px,#666 10px,#666 20px);color:#ffe27a;border:2px dashed #ffe27a}
+.err{background:var(--redbg);color:var(--red);border:1px solid var(--red);padding:10px;border-radius:6px}
+.hdr{position:sticky;top:0;z-index:5;background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:10px;display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+video{width:100%;background:#000;border-radius:4px}
+.tl{position:relative;height:22px;background:var(--bd);border-radius:3px;margin-top:6px}
+.tl .iv{position:absolute;top:2px;bottom:2px;min-width:3px;border-radius:2px;opacity:.85}
+.tl .iv.hl{outline:2px solid var(--fg);opacity:1}
+.tl .iv.s-PASS{background:var(--grn)}.tl .iv.s-FAIL,.tl .iv.s-ERROR{background:var(--red)}.tl .iv.s-UNCERTAIN,.tl .iv.s-NOT_CHECKED{background:var(--amb)}
+.checks button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:8px;margin:4px 0;background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:4px;cursor:pointer}
+.checks button.sel{border:2px solid var(--blu)}
+.sbs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sbs>div{border:1px solid var(--bd);padding:8px;border-radius:4px}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px}.thumbs figure{margin:0;font-size:12px}.thumbs img{max-width:160px;display:block;border:1px solid var(--bd)}
+.reg{border:2px solid var(--red);padding:8px;border-radius:4px;margin:8px 0}
+.q{font-style:italic;border-left:3px solid var(--bd);padding-left:8px}
+label{display:block;margin:8px 0}input[type=text],textarea{width:100%;font:inherit;padding:6px}textarea{min-height:200px;font-family:monospace}
+button.primary{padding:8px 16px;font-weight:700}
