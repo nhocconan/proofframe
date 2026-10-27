@@ -4,7 +4,7 @@
 - Seed contract tests: `docker run python:3.12-slim … pip install -e .[dev] && pytest -q` → **60 passed** (pydantic 2.14.1, pytest 9.1.1, jsonschema 4.26.0).
 - Meta probes: see `docs/CAPABILITY_PROBES.md` ($0.046 est.).
 - Spend bounds (owner-approved 2026-10-27): project $10, run $2. Test clips ≤ 2 min per owner instruction.
-- Demo footage: *Tears of Steel* (Blender Foundation, CC-BY 3.0), 720p source sha256 `efa9062d9cdb7a338e40ad530dfdf234806743f29ae6a1a136b97ece4e588e8f`; kept under `../media/`, not in Git.
+- Demo footage: *Tears of Steel* (Blender Foundation, CC-BY 3.0), 720p source sha256 `efa9062d9cdb7a338e40ad530dfdf234806743f29ae6a1a136b97ece4e588e8f`; kept under `media/` (gitignored), not in Git.
 
 ## Gate 1 — done (live, 2026-10-27)
 Stack: `docker-compose.yml` (postgres:16, FastAPI api, lease-based worker, Next.js 15 web, file-drop executor). Footage: 60 s
@@ -59,13 +59,30 @@ Ledger (`GET /v1/budget`, end of day): $0.410 settled (was $0.305 before deploym
 Only the web UI is routed, behind Traefik basic auth; API stays internal/loopback. Checks: no auth → 401, wrong password → 401,
 auth → 200, `/media` Range → 206, cert issuer Let's Encrypt (notAfter 2027-01-25), `http://<host>:8080` unreachable from outside,
 old dev token → 401. Playwright (Firefox) seek on the public URL: caption-01 → 13.2 s ∈ [13200, 21642] ms.
-Credentials: `ProofFrame_V3/.deploy-credentials` + `ProofFrame_V3/.env` (both gitignored, mode 600).
+Credentials: `private/deploy-credentials` + `.env` (both gitignored, mode 600).
 
-## Owner footage dev run — details private (`private_evaluation/NOTES.md`, not in Git)
+## Owner footage dev run — details private (`private/evaluation/NOTES.md`, not in Git)
 A 60 s owner clip with agent-drafted (not owner-approved) assertions exposed a **verifier false positive**: a state-change event
 (object breaking) fell between sampled frames, so earlier "intact" frames produced a FAIL. Fix in evaluator 0.4:
 `ObservationSpec.temporal="occurs"` (sampled miss → UNCERTAIN, never FAIL) + 0.5 s uniform frame grid for event checks.
 Live rerun of that check: PASS with evidence on the correct 0.5 s interval. Existing contract fingerprints unchanged (tested).
+
+## Generation-artifact scan (evaluator 0.5–0.7, live)
+Trigger: the owner found an obvious AI defect (hands with no visible owner, owner clip @≈5–8 s) on a run that showed PASS — that run
+only checked one declared assertion and there was no undeclared-defect scan at all. Added `generation_artifact_scan`
+(`src/proofframe/verify/anomaly.py`): 2 fps blind video hunt + independent 2 s frame grid + skeptical adjudication on 1280 px frames
+with a context frame. UI now warns on partial runs and on runs without a scan.
+
+| Clip | Evaluator | Result | Est. cost |
+|---|---|---|---|
+| Owner clip (private) | 0.5 | FAIL — confirmed object/major @48–50 s (bottle both shattered and intact in one shot: a real defect the agent had missed); **missed the hand insert @5–8 s** (prompt excluded "plausibly off-frame" limbs) | $0.070 |
+| Tears of Steel 60 s (real live action, control) | 0.5 | PASS — 1 grid candidate ("floating hand") correctly rejected by adjudication | $0.059 |
+| Owner clip | 0.6 | hand insert now a candidate (video + grid) but adjudicator **rejected** it, contradicting the first pass on who owns the hand | $0.076 |
+| Tears of Steel | 0.6 | UNCERTAIN — robot-arm close-up flagged as ownership/unclear → REVIEW | $0.062 |
+| Owner clip, full contract | 0.7 | BLOCK — hand insert → REVIEW item (ownership never auto-cleared); bottle duplicate confirmed | $0.176 |
+
+Measured so far: 2 clips, 1 confirmed true defect found, 1 owner-reported defect missed then surfaced as REVIEW, 0 confirmed false
+positives, 1 REVIEW item on real footage (robot hand). This is not a benchmark; precision/recall are unmeasured.
 
 ## Known gaps / next
 - All live runs above used evaluator 0.1; 0.2/0.3 changes (skip not_visible segments, absorb ≤10 s tail window, input-seek frames) are covered only by fake-observer tests.

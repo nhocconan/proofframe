@@ -3,7 +3,7 @@
 ## Start / stop
 
 ```bash
-cd ProofFrame_V3
+# from the repository root
 # one-time on a fresh checkout: let the container user (uid 10001) write the file-drop dir
 mkdir -p dropbox && setfacl -m u:10001:rwx -m d:u:10001:rwx dropbox
 docker compose up -d --build db api worker web     # API 127.0.0.1:8080, UI http://127.0.0.1:3000
@@ -11,15 +11,15 @@ docker compose stop                                # stop, keep data
 docker compose down                                # remove containers, keep volumes (pf_data, pf_db)
 ```
 
-Secrets: the Meta key is read from `../.env` (`META_DEV_API`) via `env_file`; never put it in this folder.
+Secrets: the Meta key is read from `.env` at the repo root (`META_DEV_API`, gitignored) via `env_file`.
 Spend bounds live in `docker-compose.yml` (`PROOFFRAME_MAX_PROJECT_COST_USD=10`, `PROOFFRAME_MAX_RUN_COST_USD=2`).
 Check remaining budget: `curl -H "Authorization: Bearer $PROOFFRAME_API_TOKEN" 127.0.0.1:8080/v1/budget`
-(token from `ProofFrame_V3/.env`; without that file compose falls back to `dev-local-token`, acceptable only on loopback).
+(token from `.env`; without that file compose falls back to `dev-local-token`, acceptable only on loopback).
 
 ## Public test site (Traefik)
 
 ```bash
-# ProofFrame_V3/.env (gitignored, chmod 600):
+# .env (gitignored, chmod 600), in addition to META_DEV_API:
 #   PROOFFRAME_API_TOKEN=<openssl rand -hex 24>
 #   PROOFFRAME_BASIC_AUTH_USERS='proofframe:<htpasswd -nbB bcrypt hash>'
 docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build db api worker web
@@ -41,7 +41,7 @@ with a basic-auth middleware. Never route the API publicly (anyone reaching it c
    - Bump `revision` if you change an approved contract with the same `contract_id` (contracts are immutable).
 2. Either use the UI (`http://127.0.0.1:3000/upload`: asset_id + mp4 + contract) or the CLI:
    ```bash
-   cp my_video.mp4 ../media/clips/ && cp my_contract.json dropbox/
+   mkdir -p media/clips && cp my_video.mp4 media/clips/ && cp my_contract.json dropbox/
    docker compose exec -e PROOFFRAME_API_URL=http://localhost:8080 api \
      proofframe verify --contract /dropbox/my_contract.json --video my-video=/media/clips/my_video.mp4 --wait
    ```

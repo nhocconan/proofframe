@@ -1,7 +1,7 @@
 # Notices
 
 - Demo footage: *Tears of Steel* © Blender Foundation | mango.blender.org, licensed CC-BY 3.0.
-  Excerpts (source 0:15–1:15, 0:15–2:15, 0:15–5:15) and derived caption composites are kept outside Git in `../media/`.
+  Excerpts (source 0:15–1:15, 0:15–2:15, 0:15–5:15) and derived caption composites are kept outside Git in `media/` (gitignored).
   The Vietnamese lower-third captions overlaid on it are ProofFrame demo material, not part of the film.
 - Fonts: DejaVu Sans (Debian `fonts-dejavu-core`) used by ffmpeg drawtext.
 - New code in this build (2026-10-27): `src/proofframe/**`, `web/**`, `e2e/`, `docker/`, `docker-compose.yml`, tests other than

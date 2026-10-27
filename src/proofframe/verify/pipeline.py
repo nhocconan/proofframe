@@ -20,10 +20,12 @@ from proofframe_contracts.policy import evaluate
 
 from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
+from . import anomaly
 from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, technical
 
-EVALUATOR_VERSION = "pf-verify-0.4(meta-video-localize+frame-confirm)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
-# 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks
+EVALUATOR_VERSION = "pf-verify-0.7(meta-video-localize+frame-confirm+artifact-scan)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+# 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
+# 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared
 VIDEO_FPS = 1.0
 MAX_FRAMES = 6
 FRAME_SPAN_MS = 42  # one frame at 24 fps; frame evidence covers [pts, pts+42ms)
@@ -203,6 +205,11 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
                                                           rationale=why, evaluator_version=EVALUATOR_VERSION)
                 continue
 
+            if obs.kind == "generation_artifact_scan":
+                _artifact_scan(check, target, probes[target.asset_id], store.path_for(target.sha256),
+                               observer, work, store, row, results, add_evidence)
+                continue
+
             # ---- model-assisted visual check
             pr = probes[target.asset_id]
             lo = check.scope.start_ms if check.scope else 0
@@ -368,6 +375,122 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
         "labels": [labels.get(run_mode, run_mode)],
     }
     return RunOutcome(envelope=envelope, artifacts=artifacts)
+
+
+def _artifact_scan(check, target, pr, src, observer, work, store, row, results, add_evidence) -> None:
+    lo = check.scope.start_ms if check.scope else 0
+    hi = min(check.scope.end_ms if check.scope else pr.duration_ms, pr.duration_ms)
+    aid = check.assertion_id
+    cands: list[anomaly.Candidate] = []
+    failed = 0
+
+    def frame_ev(t: int, path: Path, label: str, role: str, trace_id: str) -> Evidence:
+        fsha = store.put_file(path, media_type="image/png")
+        ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
+                      artifact_sha256=fsha, kind="frame", inspection="sampled", uri=f"/v1/media/{fsha}",
+                      extractor_version=media.EXTRACTOR_VERSION, trace_id=trace_id, start_ms=t,
+                      end_ms=min(t + FRAME_SPAN_MS, pr.duration_ms))
+        add_evidence(ev, role=role, label=label, media_type="image/png")
+        return ev
+
+    # stage 1: blind video hunt
+    q_hunt, s_hunt = anomaly.hunt_question()
+    row["observation_question"] = q_hunt
+    for (w0, w1) in media.windows(lo, hi):
+        proxy = media.make_proxy(src, w0, w1, work / f"{aid}-{w0}.mp4", width=854)
+        res = observer.observe_video(video=proxy, question=q_hunt, schema=s_hunt, schema_name="hunt",
+                                     fps=anomaly.VIDEO_FPS, duration_s=(w1 - w0) / 1000, purpose=f"hunt:{aid}")
+        row["trace_ids"].append(res.trace["trace_id"])
+        if not res.ok:
+            if res.outcome == "budget_exhausted":
+                raise _NotChecked(res.trace.get("error", "budget exhausted"))
+            failed += 1
+            continue
+        for d in res.parsed.get("defects", []):
+            s0 = max(w0, min(w1, w0 + int(max(0.0, float(d["start_s"])) * 1000)))
+            s1 = max(s0 + 200, min(w1, w0 + int(max(0.0, float(d["end_s"])) * 1000)))
+            cands.append(anomaly.Candidate(s0, s1, d["category"], d["severity"], d["description"], {"video"}))
+
+    # stage 2: independent frame-grid checklist
+    grid = list(range(lo + anomaly.GRID_STEP_MS // 2, hi, anomaly.GRID_STEP_MS))
+    for b in range(0, len(grid), anomaly.GRID_BATCH):
+        batch = grid[b:b + anomaly.GRID_BATCH]
+        labels = [f"G{b + i + 1}" for i in range(len(batch))]
+        items = [(lab, media.extract_frame(src, t, work / f"{aid}-{lab}.png", width=768)) for lab, t in zip(labels, batch)]
+        q_grid, s_grid = anomaly.grid_question(labels)
+        res = observer.observe_images(images=items, question=q_grid, schema=s_grid, schema_name="grid",
+                                      purpose=f"grid:{aid}")
+        row["trace_ids"].append(res.trace["trace_id"])
+        if not res.ok:
+            if res.outcome == "budget_exhausted":
+                raise _NotChecked(res.trace.get("error", "budget exhausted"))
+            failed += 1
+            continue
+        by_label = dict(zip(labels, batch))
+        for fr in res.parsed.get("frames", []):
+            t = by_label.get(fr.get("label"))
+            for d in fr.get("defects", []) if t is not None else []:
+                cands.append(anomaly.Candidate(max(lo, t - 1000), min(hi, t + 1000), d["category"],
+                                               d["severity"], d["description"], {"grid"}))
+
+    merged = anomaly.merge_candidates(cands)
+    findings: list[dict] = []
+    # stage 3: adjudicate on new evidence (higher-res frames + context), innocent explanation first
+    for n, c in enumerate(merged[:anomaly.MAX_CANDIDATES]):
+        span = c.end_ms - c.start_ms
+        times = [c.start_ms + int(span * f) for f in (0.2, 0.5, 0.8)]
+        ctx_t = max(lo, c.start_ms - (2500 if c.category == "ownership" else 1500))
+        labels = [f"A{n + 1}.{i + 1}" for i in range(3)]
+        ctx_label = f"A{n + 1}.ctx"
+        paths = [media.extract_frame(src, t, work / f"{aid}-{lab}.png", width=1280) for lab, t in zip(labels, times)]
+        ctx_path = media.extract_frame(src, ctx_t, work / f"{aid}-{ctx_label}.png", width=1280)
+        q_adj, s_adj = anomaly.adjudicate_question(c.category, c.description, labels, ctx_label)
+        res = observer.observe_images(images=list(zip(labels, paths)) + [(ctx_label, ctx_path)], question=q_adj,
+                                      schema=s_adj, schema_name="adjudicate", purpose=f"adjudicate:{aid}")
+        row["trace_ids"].append(res.trace["trace_id"])
+        evs = {lab: frame_ev(t, p, f"{lab} @ {t/1000:.2f}s (candidate {n + 1})", "target", res.trace["trace_id"])
+               for lab, t, p in zip(labels, times, paths)}
+        evs[ctx_label] = frame_ev(ctx_t, ctx_path, f"{ctx_label} @ {ctx_t/1000:.2f}s (context)", "context",
+                                  res.trace["trace_id"])
+        if not res.ok:
+            if res.outcome == "budget_exhausted":
+                raise _NotChecked(res.trace.get("error", "budget exhausted"))
+            failed += 1
+            continue
+        v = res.parsed
+        if c.category == "ownership" and v.get("verdict") == "rejected":
+            # limb ownership is not a qualified model capability (passes have contradicted each other on owner
+            # attribution); an off-screen owner is never auto-cleared — it becomes a human review item.
+            v = {**v, "verdict": "review", "explanation": "[auto-clear disabled for ownership] " + v.get("explanation", "")}
+        cited = [evs[l].evidence_id for l in v.get("evidence_labels", []) if l in evs and l != ctx_label]
+        findings.append({"candidate": n + 1, "start_ms": c.start_ms, "end_ms": c.end_ms, "category": c.category,
+                         "severity": v.get("severity", c.severity), "verdict": v.get("verdict", "unclear"),
+                         "description": c.description, "sources": sorted(c.sources),
+                         "innocent_explanation_considered": v.get("innocent_explanation_considered", ""),
+                         "explanation": v.get("explanation", ""),
+                         "evidence_ids": cited or [evs[l].evidence_id for l in labels]})
+
+    status, why = anomaly.decide_scan(findings, candidates_total=len(merged),
+                                      adjudicated=min(len(merged), anomaly.MAX_CANDIDATES),
+                                      frames_scanned=len(grid), calls_failed=failed)
+    shown = [f for f in findings if f["verdict"] != "rejected"]
+    key = [f for f in shown if f["verdict"] == "confirmed"] or shown
+    ev_ids = [e for f in (key if status != "PASS" else findings[:1]) for e in f["evidence_ids"]]
+    if status == "PASS" and not ev_ids:
+        # evidence for a clean scan = the grid frames that were inspected
+        ev_ids = [frame_ev(t, work / f"{aid}-G{i + 1}.png", f"G{i + 1} @ {t/1000:.1f}s (grid)", "target",
+                           row["trace_ids"][-1]).evidence_id for i, t in enumerate(grid[:3])]
+    row.update(observed=("; ".join(f"{f['category']}/{f['severity']} {f['verdict']} @{f['start_ms']/1000:.1f}s"
+                                   for f in shown) or "no surviving defects"),
+               evidence_ids=ev_ids, findings=findings, rationale=why,
+               focus=({"start_ms": key[0]["start_ms"], "end_ms": key[0]["end_ms"]} if key else None),
+               limitations=[f"sampled: {anomaly.VIDEO_FPS:g} fps video pass + frames every {anomaly.GRID_STEP_MS/1000:g} s; "
+                            "defects shorter than the sampling interval can be missed",
+                            f"at most {anomaly.MAX_CANDIDATES} candidates adjudicated per run",
+                            "all stages use the same model family (muse-spark-1.3); not qualified on a labelled benchmark"])
+    results[aid] = CheckResult(assertion_id=aid, status=Status(status),
+                               evidence_ids=tuple(dict.fromkeys(ev_ids)) if status in ("PASS", "FAIL") else (),
+                               rationale=why[:2000], evaluator_version=EVALUATOR_VERSION)
 
 
 class _NotChecked(Exception):

@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+media/
+private/
+dropbox/
+validation/
+web/node_modules
+web/.next
+**/__pycache__

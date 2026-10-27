@@ -2,23 +2,20 @@
 .env
 .env.*
 !.env.example
-**/.deploy-credentials
-# Media: client/owner footage and derived files live outside Git
+# Owner/client media and anything derived from it
 media/
 *.mp4
 *.mov
 *.mkv
 *.wav
-# Private evaluation data (contracts/reports about owner or client footage)
-**/private_assets/
-**/private_evaluation/
+# Private notes, evaluation data about owner/client footage, credentials, agent scratch
+private/
 # Runtime / local state
-**/dropbox/
-**/.work/
-**/node_modules/
-**/.next/
-**/__pycache__/
+dropbox/
+node_modules/
+.next/
+__pycache__/
 *.py[cod]
-**/.pytest_cache/
-**/*.egg-info/
+.pytest_cache/
+*.egg-info/
 .venv/

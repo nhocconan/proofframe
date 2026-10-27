@@ -1,6 +1,6 @@
 # Public test site behind the host's Traefik (network `balancer`, ACME resolver `myresolver`).
 # Only the web UI is routed; the API stays on the internal network + loopback.
-# Requires ProofFrame_V3/.env (gitignored): PROOFFRAME_API_TOKEN, PROOFFRAME_BASIC_AUTH_USERS (htpasswd -nbB, single-quoted).
+# Requires .env (gitignored): PROOFFRAME_API_TOKEN, PROOFFRAME_BASIC_AUTH_USERS (htpasswd -nbB, single-quoted).
 # Usage: docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build db api worker web
 services:
   web:

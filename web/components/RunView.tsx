@@ -10,6 +10,9 @@ const intervalOf = (c: Check, env: Envelope): Interval | null => {
   return ev ? { start_ms: ev.start_ms, end_ms: Math.max(ev.end_ms, ev.start_ms) } : null;
 };
 
+type Finding = { candidate: number; start_ms: number; end_ms: number; category: string; severity: string;
+  verdict: string; description: string; innocent_explanation_considered: string; explanation: string; evidence_ids: string[] };
+
 export default function RunView({ env, fixture }: { env: Envelope; fixture?: boolean }) {
   const vref = useRef<HTMLVideoElement>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -20,6 +23,8 @@ export default function RunView({ env, fixture }: { env: Envelope; fixture?: boo
   const dur = target?.duration_ms ?? 0;
   const cov = env.coverage;
   const unresolved = (cov.uncertain ?? 0) + (cov.not_checked ?? 0) + (cov.error ?? 0);
+  const skipped = Math.max(0, (cov.contract_total ?? env.checks.length) - (cov.selected ?? env.checks.length));
+  const hasScan = env.checks.some((c) => (c as Check & { findings?: unknown[] }).findings !== undefined);
   const check = env.checks.find((c) => c.assertion_id === sel) ?? null;
   const regs = env.checks.filter((c) => c.regression);
 
@@ -33,13 +38,17 @@ export default function RunView({ env, fixture }: { env: Envelope; fixture?: boo
 
   return (
     <div>
+      {skipped > 0 && <div className="err" data-testid="partial-run">PARTIAL RUN — only {cov.selected} of {cov.contract_total} contract
+        assertions were checked; {skipped} were not evaluated in this run. This page is not a verdict on the whole video.</div>}
+      {!hasScan && <div className="err" data-testid="no-scan">No generation-artifact scan in this run — undeclared defects (e.g. floating
+        hands, morphing props) were NOT looked for. PASS here only covers the listed assertions.</div>}
       <div className="hdr" data-testid="run-header">
         <span className={`mode mode-${mode}`} data-testid="run-mode">{MODE_LABEL[mode] ?? mode}</span>
         <div><Badge v={env.decision.decision} /> <b data-testid="decision">{env.decision.decision}</b>
           <div style={{ fontSize: 12 }}>not a publishing authorization</div></div>
         <div data-testid="coverage">Mandatory {cov.mandatory}: pass {cov.pass} · fail {cov.fail} · uncertain {cov.uncertain} ·
           not_checked {cov.not_checked} · error {cov.error} · n/a {cov.not_applicable}
-          <br /><b>Unresolved mandatory: {unresolved}</b></div>
+          <br /><b>Unresolved: {unresolved}</b></div>
         <div data-testid="cost">Est. cost {usd(env.cost.estimated_usd)} · unknown-cost calls {env.cost.unknown_cost_calls}</div>
       </div>
       {fixture && <p className="err">Fixture view (?fixture=1): synthetic data, not from the API.</p>}
@@ -90,6 +99,17 @@ export default function RunView({ env, fixture }: { env: Envelope; fixture?: boo
                 <div><b>Observed</b><br />{check.observed ?? <i>none (no observation)</i>}</div>
               </div>
               <p><b>Rationale:</b> {check.rationale}</p>
+              {(check as Check & { findings?: Finding[] }).findings?.length ? (
+                <div data-testid="findings"><b>Scan findings</b>
+                  <table><thead><tr><th>Time</th><th>Category</th><th>Verdict</th><th>Description / adjudication</th></tr></thead>
+                    <tbody>{(check as Check & { findings: Finding[] }).findings.map((f) => (
+                      <tr key={f.candidate} className={f.verdict === "confirmed" ? "sel" : ""}>
+                        <td><button data-testid={`finding-${f.candidate}`} onClick={() => seek(Math.round((f.start_ms + f.end_ms) / 2))}>
+                          {(f.start_ms / 1000).toFixed(1)}–{(f.end_ms / 1000).toFixed(1)}s</button></td>
+                        <td>{f.category}/{f.severity}</td>
+                        <td><Badge v={f.verdict === "confirmed" ? "FAIL" : f.verdict === "rejected" ? "PASS" : "UNCERTAIN"} /> {f.verdict}</td>
+                        <td>{f.description}<br /><small>Innocent explanation considered: {f.innocent_explanation_considered}<br />
+                          {f.explanation}</small></td></tr>))}</tbody></table></div>) : null}
               {check.limitations.length > 0 && <><b>Limitations</b><ul>{check.limitations.map((l, i) => <li key={i}>{l}</li>)}</ul></>}
               {check.observation_question && <><b>Neutral question sent to model</b><div className="q">{check.observation_question}</div></>}
               {check.regression && (

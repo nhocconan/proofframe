@@ -91,10 +91,10 @@ class ObservationSpec(Record):
     The observer only receives `subject`, `attribute` and `vocabulary`; `expected`
     stays in deterministic comparison code. `technical` checks never call a model.
     """
-    kind: Literal["visual_attribute", "on_screen_text", "technical"]
+    kind: Literal["visual_attribute", "on_screen_text", "technical", "generation_artifact_scan"]
     subject: Nonempty
     attribute: Nonempty
-    comparator: Literal["category_equals", "exact_text_nfc", "technical"]
+    comparator: Literal["category_equals", "exact_text_nfc", "technical", "anomaly_scan"]
     vocabulary: tuple[Nonempty, ...] = ()
     technical_metric: Literal["duration_ms", "has_audio", "width", "height"] | None = None
     tolerance: int = Field(default=0, ge=0)
@@ -113,6 +113,8 @@ class ObservationSpec(Record):
     def consistent(self) -> ObservationSpec:
         if (self.kind == "technical") != (self.comparator == "technical"):
             raise ValueError("technical kind and comparator must agree")
+        if (self.kind == "generation_artifact_scan") != (self.comparator == "anomaly_scan"):
+            raise ValueError("artifact scan kind and comparator must agree")
         if self.kind == "technical" and self.technical_metric is None:
             raise ValueError("technical checks need a metric")
         if self.comparator == "category_equals" and not self.vocabulary:

@@ -1,11 +1,11 @@
 # ProofFrame local stack. Private ports bind to loopback only.
-# Paid Meta calls are bounded by PROOFFRAME_MAX_*; key comes from ../.env (META_DEV_API).
+# Paid Meta calls are bounded by PROOFFRAME_MAX_*; key comes from .env (META_DEV_API, gitignored).
 name: proofframe
 
 x-app: &app
   build: { context: ., dockerfile: docker/app.Dockerfile }
   image: proofframe-app:dev
-  env_file: [../.env]
+  env_file: [.env]
   environment: &appenv
     DATABASE_URL: postgresql+psycopg://proofframe:proofframe@db:5432/proofframe
     PROOFFRAME_MODE: meta_hackathon
@@ -22,7 +22,7 @@ x-app: &app
   volumes:
     - pf_data:/data
     - ./dropbox:/dropbox
-    - ../media:/media:ro
+    - ./media:/media:ro
   depends_on:
     db: { condition: service_healthy }
   read_only: true
