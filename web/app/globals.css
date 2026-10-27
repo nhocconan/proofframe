@@ -95,3 +95,8 @@ button.primary{padding:8px 16px;font-weight:700}
 .rv .plain{font-size:14px;font-weight:500;margin:10px 0}
 .detail details{margin:6px 0}.detail summary{cursor:pointer;font-size:12px}
 .rv,.rv *{min-width:0}
+.pair{display:flex;align-items:center;gap:4px;flex:none}.thumb.half{width:96px;height:54px}.arrow{color:var(--mut);font-weight:700}
+.ab{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.ab button{all:unset;cursor:pointer;font-size:12px;padding:8px;border:1px solid var(--bd);border-radius:8px;line-height:1.4}
+.ab button:hover{border-color:var(--blu)}@media(max-width:560px){.ab{grid-template-columns:1fr}.thumb.half{width:64px;height:36px}}
+.pairs{display:flex;flex-direction:column;gap:6px;margin:10px 0}.pairs button{all:unset;cursor:pointer;font-size:12px;line-height:1.4;padding:6px 8px;border:1px solid var(--bd);border-radius:8px}.pairs button:hover{border-color:var(--blu)}
+.issue-head{flex-wrap:wrap}.issue-head .pair{margin-bottom:2px}

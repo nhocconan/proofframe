@@ -20,12 +20,12 @@ from proofframe_contracts.policy import evaluate
 
 from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
-from . import anomaly
+from . import anomaly, continuity
 from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, technical
 
-EVALUATOR_VERSION = "pf-verify-0.7(meta-video-localize+frame-confirm+artifact-scan)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+EVALUATOR_VERSION = "pf-verify-0.12(meta-video-localize+frame-confirm+artifact-scan)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
 # 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
-# 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared
+# 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared; 0.8: cross-shot continuity audit; 0.9: pairwise + swapped-order adjudication; 0.10: intrinsic long-range checks, insert bridging; 0.11: adjudicate up to 24 suspicions; 0.12: assertions evaluated concurrently
 VIDEO_FPS = 1.0
 MAX_FRAMES = 6
 FRAME_SPAN_MS = 42  # one frame at 24 fps; frame evidence covers [pts, pts+42ms)
@@ -167,7 +167,7 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
         artifacts.append({"sha256": ev.artifact_sha256, "media_type": media_type, "kind": ev.kind,
                           "evidence_id": ev.evidence_id})
 
-    for check in selected:
+    def _one(check) -> None:
         obs = check.observation
         row = {"assertion_id": check.assertion_id, "target_asset_id": check.target_asset_id,
                "blocking": check.blocking,
@@ -183,7 +183,7 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
                 results[check.assertion_id] = CheckResult(
                     assertion_id=check.assertion_id, status=Status.NOT_CHECKED, evaluator_version=EVALUATOR_VERSION,
                     rationale="No observation spec: this checker cannot evaluate the predicate.")
-                continue
+                return
             if obs.kind == "technical":
                 pr = probes.get(target.asset_id)
                 path = store.path_for(target.sha256)
@@ -203,12 +203,16 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
                 results[check.assertion_id] = CheckResult(assertion_id=check.assertion_id, status=Status(status),
                                                           evidence_ids=(ev.evidence_id,) if status in ("PASS", "FAIL") else (),
                                                           rationale=why, evaluator_version=EVALUATOR_VERSION)
-                continue
+                return
 
+            if obs.kind == "cross_shot_continuity":
+                _continuity_audit(check, target, probes[target.asset_id], store.path_for(target.sha256),
+                                  observer, work, store, row, results, add_evidence)
+                return
             if obs.kind == "generation_artifact_scan":
                 _artifact_scan(check, target, probes[target.asset_id], store.path_for(target.sha256),
                                observer, work, store, row, results, add_evidence)
-                continue
+                return
 
             # ---- model-assisted visual check
             pr = probes[target.asset_id]
@@ -320,6 +324,11 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
             results[check.assertion_id] = CheckResult(assertion_id=check.assertion_id, status=Status.ERROR,
                                                       rationale=row["rationale"][:2000], evaluator_version=EVALUATOR_VERSION)
 
+    # assertions are independent: evaluate them concurrently (each check still runs its own stages)
+    from concurrent.futures import ThreadPoolExecutor as _TPE
+    with _TPE(max_workers=4) as _ex:
+        list(_ex.map(_one, selected))
+
     # 3. dependencies: a PASS whose prerequisites did not PASS is downgraded, never kept.
     for check in selected:
         r = results[check.assertion_id]
@@ -411,15 +420,25 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
             s1 = max(s0 + 200, min(w1, w0 + int(max(0.0, float(d["end_s"])) * 1000)))
             cands.append(anomaly.Candidate(s0, s1, d["category"], d["severity"], d["description"], {"video"}))
 
-    # stage 2: independent frame-grid checklist
+    # stage 2: independent frame-grid checklist (batches run in parallel)
+    from concurrent.futures import ThreadPoolExecutor
     grid = list(range(lo + anomaly.GRID_STEP_MS // 2, hi, anomaly.GRID_STEP_MS))
+    jobs = []
     for b in range(0, len(grid), anomaly.GRID_BATCH):
         batch = grid[b:b + anomaly.GRID_BATCH]
         labels = [f"G{b + i + 1}" for i in range(len(batch))]
         items = [(lab, media.extract_frame(src, t, work / f"{aid}-{lab}.png", width=768)) for lab, t in zip(labels, batch)]
+        jobs.append((labels, batch, items))
+
+    def grid_call(job):
+        labels, batch, items = job
         q_grid, s_grid = anomaly.grid_question(labels)
-        res = observer.observe_images(images=items, question=q_grid, schema=s_grid, schema_name="grid",
-                                      purpose=f"grid:{aid}")
+        return job, observer.observe_images(images=items, question=q_grid, schema=s_grid, schema_name="grid",
+                                            purpose=f"grid:{aid}")
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        grid_results = list(ex.map(grid_call, jobs))
+    for (labels, batch, _), res in grid_results:
         row["trace_ids"].append(res.trace["trace_id"])
         if not res.ok:
             if res.outcome == "budget_exhausted":
@@ -488,6 +507,170 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
                             "defects shorter than the sampling interval can be missed",
                             f"at most {anomaly.MAX_CANDIDATES} candidates adjudicated per run",
                             "all stages use the same model family (muse-spark-1.3); not qualified on a labelled benchmark"])
+    results[aid] = CheckResult(assertion_id=aid, status=Status(status),
+                               evidence_ids=tuple(dict.fromkeys(ev_ids)) if status in ("PASS", "FAIL") else (),
+                               rationale=why[:2000], evaluator_version=EVALUATOR_VERSION)
+
+
+def _continuity_audit(check, target, pr, src, observer, work, store, row, results, add_evidence) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    aid = check.assertion_id
+    shots = media.detect_shots(src, pr.duration_ms)
+    keys = continuity.plan_keyframes(shots)
+    paths = {k.label: media.extract_frame(src, k.t_ms, work / f"{aid}-{k.label}.png", width=768) for k in keys}
+    hires: dict[int, list[tuple[int, Path]]] = {}
+
+    def shot_frames(i: int) -> list[tuple[int, Path]]:
+        if i not in hires:
+            a, b = shots[i]
+            ts = [a + (b - a) // 3, a + 2 * (b - a) // 3]
+            hires[i] = [(t, media.extract_frame(src, t, work / f"{aid}-hs{i}-{t}.png", width=1024)) for t in ts]
+        return hires[i]
+
+    by_label = {k.label: k for k in keys}
+    failed = 0
+    log: list[dict] = []
+    suspicions: list[dict] = []
+
+    def bad(res) -> bool:
+        nonlocal failed
+        if res.ok:
+            return False
+        if res.outcome == "budget_exhausted":
+            raise _NotChecked(res.trace.get("error", "budget exhausted"))
+        failed += 1
+        return True
+
+    # stage 1: blind continuity log (registry of recurring entities)
+    for batch in continuity.batches(keys):
+        labels = [k.label for k in batch]
+        lines = [f"{k.label}: shot {k.shot + 1}, t={k.t_ms / 1000:.1f}s (shot {shots[k.shot][0] / 1000:.1f}-"
+                 f"{shots[k.shot][1] / 1000:.1f}s)" for k in batch]
+        q, sch = continuity.log_question(labels, lines)
+        row["observation_question"] = q
+        res = observer.observe_images(images=[(l, paths[l]) for l in labels], question=q, schema=sch,
+                                      schema_name="continuity_log", purpose=f"continuity_log:{aid}")
+        row["trace_ids"].append(res.trace["trace_id"])
+        if bad(res):
+            continue
+        log.extend(res.parsed.get("log", []))
+        for e in res.parsed.get("errors", []):
+            a, b = by_label.get(e.get("frame_a")), by_label.get(e.get("frame_b"))
+            if a and b and a.shot != b.shot:
+                lo_, hi_ = sorted((a.shot, b.shot))
+                suspicions.append({**e, "shot_a": lo_, "shot_b": hi_, "source": "log"})
+
+    # stage 2: focused pairwise comparison (adjacent shots + registry first-vs-later appearances), in parallel
+    pairs = continuity.plan_pairs(len(shots), log, {k.label: k.shot for k in keys}, shots)
+    for a, b, _ in pairs:
+        shot_frames(a), shot_frames(b)
+
+    def compare(pair):
+        a, b, ents = pair
+        la, lb = [f"P{a + 1}.{i + 1}" for i in range(2)], [f"Q{b + 1}.{i + 1}" for i in range(2)]
+        if continuity.is_long_range(a, b, ents, shots):
+            q, sch = continuity.entity_question(la, lb, ents)
+        else:
+            q, sch = continuity.pair_question(la, lb, ents)
+        imgs = list(zip(la, [p for _, p in hires[a]])) + list(zip(lb, [p for _, p in hires[b]]))
+        return pair, observer.observe_images(images=imgs, question=q, schema=sch, schema_name="continuity_pair",
+                                             purpose=f"continuity_pair:{aid}")
+
+    with ThreadPoolExecutor(max_workers=continuity.WORKERS) as ex:
+        for (a, b, _), res in ex.map(compare, pairs):
+            row["trace_ids"].append(res.trace["trace_id"])
+            if bad(res):
+                continue
+            for d in res.parsed.get("discrepancies", []):
+                suspicions.append({**d, "shot_a": a, "shot_b": b, "source": "pair",
+                                   "same_scene": res.parsed.get("same_scene")})
+
+    # dedupe (shot pair, kind, entity) — keep most severe; prefer items reported by both log and pair
+    merged: dict[tuple, dict] = {}
+    for sp in suspicions:
+        k = (sp["shot_a"], sp["shot_b"], sp["kind"], sp["entity"].lower()[:20])
+        cur = merged.get(k)
+        if cur is None:
+            merged[k] = {**sp, "sources": {sp["source"]}}
+        else:
+            cur["sources"].add(sp["source"])
+            if continuity.SEVERITIES.index(sp["severity"]) > continuity.SEVERITIES.index(cur["severity"]):
+                cur.update(severity=sp["severity"], description=sp["description"])
+    ranked = sorted(merged.values(), key=lambda s: (-continuity.SEVERITIES.index(s["severity"]),
+                                                     -len(s["sources"]), s["shot_b"]))
+
+    # stage 3: adjudicate in the SWAPPED order (later shot shown first) — a difference must survive both orders
+    def adjudicate(item):
+        n, sp = item
+        a, b = sp["shot_a"], sp["shot_b"]
+        lb, la = [f"C{n + 1}.X{i + 1}" for i in range(2)], [f"C{n + 1}.Y{i + 1}" for i in range(2)]
+        q, sch = continuity.adjudicate_question(sp["entity"], sp["kind"], lb, la)
+        imgs = list(zip(lb, [p for _, p in shot_frames(b)])) + list(zip(la, [p for _, p in shot_frames(a)]))
+        return n, sp, observer.observe_images(images=imgs, question=q, schema=sch, schema_name="continuity_adjudicate",
+                                              purpose=f"continuity_adjudicate:{aid}")
+
+    todo = list(enumerate(ranked[:continuity.MAX_SUSPICIONS]))
+    for _, sp in todo:
+        shot_frames(sp["shot_a"]), shot_frames(sp["shot_b"])
+    findings: list[dict] = []
+    with ThreadPoolExecutor(max_workers=continuity.WORKERS) as ex:
+        outs = list(ex.map(adjudicate, todo))
+    for n, sp, res in sorted(outs, key=lambda x: x[0]):
+        row["trace_ids"].append(res.trace["trace_id"])
+        a, b = sp["shot_a"], sp["shot_b"]
+        evs = []
+        for role, i in (("A", a), ("B", b)):
+            for t, p in shot_frames(i):
+                fsha = store.put_file(p, media_type="image/png")
+                ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
+                              artifact_sha256=fsha, kind="frame", inspection="sampled", uri=f"/v1/media/{fsha}",
+                              extractor_version=media.EXTRACTOR_VERSION, trace_id=res.trace["trace_id"], start_ms=t,
+                              end_ms=min(t + FRAME_SPAN_MS, pr.duration_ms))
+                add_evidence(ev, role="target", label=f"shot {i + 1} ({role}) @ {t / 1000:.2f}s", media_type="image/png")
+                evs.append(ev.evidence_id)
+        if bad(res):
+            continue
+        v = res.parsed
+        (a0, a1), (b0, b1) = shots[a], shots[b]
+        findings.append({"candidate": n + 1, "start_ms": b0, "end_ms": b1, "ref_start_ms": a0, "ref_end_ms": a1,
+                         "category": sp["kind"], "entity": sp["entity"],
+                         "severity": v.get("severity", sp["severity"]),
+                         "verdict": continuity.finding_status(sp["kind"], v.get("verdict", "unclear"),
+                                                              v.get("severity", sp["severity"])),
+                         "description": f"{sp['entity']}: {sp['description']}", "sources": sorted(sp["sources"]),
+                         # adjudication saw the later shot first: map its descriptions back to A/B
+                         "shot_a_description": v.get("shot_b_description", ""),
+                         "shot_b_description": v.get("shot_a_description", ""),
+                         "innocent_explanation_considered": v.get("innocent_explanation_considered", ""),
+                         "explanation": v.get("explanation", ""), "evidence_ids": evs})
+
+    status, why = anomaly.decide_scan(findings, candidates_total=len(ranked),
+                                      adjudicated=len(todo), frames_scanned=len(keys), calls_failed=failed)
+    why = why.replace("grid frames + 2 fps video pass",
+                      f"keyframes over {len(shots)} detected shots, {len(pairs)} shot pairs compared")
+    shown = [f for f in findings if f["verdict"] != "rejected"]
+    key = [f for f in shown if f["verdict"] == "confirmed"] or shown
+    ev_ids = [e for f in (key or findings[:1]) for e in f["evidence_ids"]]
+    if not ev_ids:
+        k0 = keys[0]
+        fsha = store.put_file(paths[k0.label], media_type="image/png")
+        ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256, artifact_sha256=fsha,
+                      kind="frame", inspection="sampled", uri=f"/v1/media/{fsha}",
+                      extractor_version=media.EXTRACTOR_VERSION, trace_id=(row["trace_ids"] or ["none"])[-1],
+                      start_ms=k0.t_ms, end_ms=min(k0.t_ms + FRAME_SPAN_MS, pr.duration_ms))
+        add_evidence(ev, role="target", label=f"{k0.label} @ {k0.t_ms / 1000:.2f}s", media_type="image/png")
+        ev_ids = [ev.evidence_id]
+    row.update(observed=("; ".join(f"{f['category']}/{f['severity']} {f['verdict']} @{f['start_ms']/1000:.1f}s"
+                                   for f in shown) or "no surviving cross-shot errors"),
+               evidence_ids=ev_ids, findings=findings, shots=[{"start_ms": a, "end_ms": b} for a, b in shots],
+               continuity_log=log, rationale=why,
+               focus=({"start_ms": key[0]["start_ms"], "end_ms": key[0]["end_ms"]} if key else None),
+               limitations=[f"{len(shots)} shots from FFmpeg hard-cut detection (dissolves may be missed); "
+                            "changes inside a shot between keyframes are not seen",
+                            f"{len(pairs)} shot pairs compared (adjacent + registry first-vs-later); other pairs not compared",
+                            f"at most {continuity.MAX_SUSPICIONS} suspicions adjudicated (in swapped shot order)",
+                            "identity drift is never auto-FAIL (face identity is not a qualified capability)"])
     results[aid] = CheckResult(assertion_id=aid, status=Status(status),
                                evidence_ids=tuple(dict.fromkeys(ev_ids)) if status in ("PASS", "FAIL") else (),
                                rationale=why[:2000], evaluator_version=EVALUATOR_VERSION)

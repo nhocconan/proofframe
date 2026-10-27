@@ -83,6 +83,29 @@ with a context frame. UI now warns on partial runs and on runs without a scan.
 Measured so far: 2 clips, 1 confirmed true defect found, 1 owner-reported defect missed then surfaced as REVIEW, 0 confirmed false
 positives, 1 REVIEW item on real footage (robot hand). This is not a benchmark; precision/recall are unmeasured.
 
+## Cross-shot continuity audit (evaluator 0.8–0.12, live)
+SOTA review: `docs/SOTA_CONTINUITY_REVIEW.md` (research worker; sources marked verified/secondary/unverified).
+Implementation (self-written): `src/proofframe/verify/continuity.py`, `media.detect_shots` (FFmpeg scene score;
+12/12 hard cuts found on the owner clip vs manual count). Dev labels frozen before implementation:
+`private/evaluation/labels_*.json` (gitignored) (11 defects, 8 must-catch; agent-labelled, owner unconfirmed).
+Scorer: `scripts/score_findings.py`.
+
+| Evaluator | Run scope | Must-catch surfaced | Live-action control false FAIL | Est. cost | Wall |
+|---|---|---|---|---|---|
+| 0.7 (scan only) | full | 2/8 | 0 | $0.176 | — |
+| 0.8 log only | scan+continuity | 2/8 | 0 | $0.227 | — |
+| 0.9 pairs + swapped adjudication | scan+continuity | 3/8 (rescored with entity keywords) | 1 (hologram) | $0.458 | — |
+| 0.10 intrinsic long-range + insert bridging + VFX clause | scan+continuity | 5/8 | 0 | $0.466 | 216 s |
+| 0.10 | full contract | 3/8 (adjudication cap cut 11 of 21 candidates) | — | $0.592 | 309 s |
+| 0.11 cap 24 | continuity only ×2 | 3 and 4 cross-shot catches | 0 | $0.585 / $0.599 | 118 / 126 s |
+| 0.11 | full contract | 5/8 | — | $0.742 | 287 s |
+| 0.12 concurrent assertions | full contract | 4/8 | — | $0.643 | **146 s** |
+
+Persistent misses: D2 furniture swap (1 of 4 runs), D7 person vanishing across an insert (raised by pairs,
+rejected at adjudication), D8 bag material. Unlabelled confirmed findings (owner to judge): telephone appearing
+on the shop table, bottle growing as it falls, boombox handle color. The dev clip was used for tuning — numbers
+are optimistic; no held-out set. Tests: 114 passed.
+
 ## Known gaps / next
 - All live runs above used evaluator 0.1; 0.2/0.3 changes (skip not_visible segments, absorb ≤10 s tail window, input-seek frames) are covered only by fake-observer tests.
 - Gate 3 did not include a generative shot replacement: REGENERATE_SHOT has no executor here (only the deterministic composite executor).

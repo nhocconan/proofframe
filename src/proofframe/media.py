@@ -109,3 +109,24 @@ def composite_caption(src: Path, out: Path, *, text_file: Path, start_ms: int, e
     argv += ["-movflags", "+faststart", "-y", str(out)]
     _run(argv)
     return out
+
+
+def detect_shots(src: Path, duration_ms: int, threshold: float = 0.3, min_shot_ms: int = 400) -> list[tuple[int, int]]:
+    """Hard-cut shot boundaries from FFmpeg's scene-change score (downscaled for speed).
+
+    Returns [(start_ms, end_ms)] covering the whole file. Dissolves/fades are not modelled:
+    a gradual transition may be missed or split; callers treat shots as approximate.
+    """
+    proc = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(src), "-an", "-vf",
+                           f"scale=320:-2,select='gt(scene,{threshold})',showinfo", "-f", "null", "-"],
+                          capture_output=True, timeout=TIMEOUT_S, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(f"shot detection failed: {proc.stderr.decode(errors='replace')[-400:]}")
+    cuts = sorted({int(round(float(m) * 1000)) for m in
+                   __import__("re").findall(r"pts_time:([0-9.]+)", proc.stderr.decode(errors="replace"))})
+    bounds = [0]
+    for c in cuts:
+        if min_shot_ms <= c - bounds[-1] and duration_ms - c >= min_shot_ms:
+            bounds.append(c)
+    bounds.append(duration_ms)
+    return list(zip(bounds[:-1], bounds[1:]))

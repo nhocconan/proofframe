@@ -111,6 +111,46 @@
     "comparator": "technical",
     "technical_metric": "has_audio"
    }
+  },
+  {
+   "target_asset_id": "my-video",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 1
+   },
+   "assertion_id": "gen-artifacts",
+   "source_pointer": "/profile/film/no_generation_artifacts",
+   "predicate": "no confirmed major generation defects (anatomy, objects, text, physics, within-shot continuity)",
+   "expected": "no confirmed major defects",
+   "observation": {
+    "kind": "generation_artifact_scan",
+    "subject": "the whole video",
+    "attribute": "visual generation defects",
+    "comparator": "anomaly_scan"
+   }
+  },
+  {
+   "target_asset_id": "my-video",
+   "blocking": true,
+   "stage": "assembly",
+   "global_sentinel": true,
+   "coverage": {
+    "kind": "sampled",
+    "minimum_items": 1
+   },
+   "assertion_id": "continuity",
+   "source_pointer": "/profile/film/cross_shot_continuity",
+   "predicate": "no confirmed cross-shot continuity errors (props, wardrobe, set, presence, holders)",
+   "expected": "no confirmed major errors",
+   "observation": {
+    "kind": "cross_shot_continuity",
+    "subject": "the whole film",
+    "attribute": "cross-shot continuity",
+    "comparator": "continuity_audit"
+   }
   }
  ]
 }

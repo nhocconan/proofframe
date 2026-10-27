@@ -7,6 +7,7 @@ import { MODE_LABEL, usd } from "@/lib/fmt";
 type Finding = {
   candidate: number; start_ms: number; end_ms: number; category: string; severity: string; verdict: string;
   description: string; innocent_explanation_considered: string; explanation: string; evidence_ids: string[]; sources?: string[];
+  ref_start_ms?: number; ref_end_ms?: number; entity?: string; shot_a_description?: string; shot_b_description?: string;
 };
 type ScanCheck = Check & { findings?: Finding[]; target_asset_id?: string };
 type Tone = "block" | "review" | "ok" | "muted";
@@ -14,12 +15,46 @@ type Item = {
   key: string; testId: string; tone: Tone; title: string; kindLabel: string; time: Interval | null;
   expected?: string; seen?: string | null; summary?: string; evidenceIds: string[];
   why?: string; modelNote?: string; limitations?: string[]; question?: string; regression?: Check["regression"];
-  check: ScanCheck;
+  check: ScanCheck; ref?: Interval | null; aDesc?: string; bDesc?: string;
+  entity?: string; pairs?: Item[];
 };
+
+const tokens = (e?: string) => new Set((e ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ")
+  .filter((w) => w && !["the", "a", "an", "of", "s"].includes(w)));
+const sameEntity = (a?: string, b?: string) => {
+  const ta = tokens(a), tb = tokens(b);
+  if (!ta.size || !tb.size) return false;
+  const [small, big] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+  return [...small].every((w) => big.has(w));
+};
+
+/** Many shot pairs often show the same entity's contradiction: one card per entity, pairs listed inside. */
+function groupCrossShot(items: Item[]): Item[] {
+  const out: Item[] = [];
+  for (const it of items) {
+    if (!it.ref) { out.push(it); continue; }
+    const g = out.find((o) => o.pairs && o.tone === it.tone && sameEntity(o.entity, it.entity));
+    if (!g) { out.push({ ...it, pairs: [it] }); continue; }
+    g.pairs!.push(it);
+    g.evidenceIds = [...g.evidenceIds, ...it.evidenceIds];
+  }
+  for (const g of out) {
+    if (g.pairs && g.pairs.length > 1) {
+      const kinds = [...new Set(g.pairs.map((p) => p.title))];
+      g.title = `${(g.entity ?? "").replace(/_/g, " ")} — ${kinds.length === 1 ? kinds[0].toLowerCase() : "changes between shots"}`;
+      g.summary = `Contradicts itself in ${g.pairs.length} shot pairs. ${g.summary ?? ""}`;
+    }
+  }
+  return out;
+}
 
 const CATEGORY: Record<string, string> = {
   anatomy: "Body / anatomy defect", ownership: "Hands or limbs with no visible owner", object: "Object defect",
   text: "Garbled text", physics: "Impossible physics", continuity: "Continuity break in one shot", other: "Visual defect",
+  prop_scale: "Prop changes size between shots", prop_design: "Prop changes design between shots",
+  wardrobe: "Wardrobe changes between shots", accessory: "Accessory appears / disappears between shots",
+  set: "Set or furniture changes within a scene", presence: "Person appears / vanishes without a transition",
+  holder: "Object's holder contradicts the previous shot", identity: "Character looks like a different person",
 };
 
 const clean = (s?: string) => (s ?? "").replace(/^\[[^\]]*\]\s*/, "").trim();
@@ -54,10 +89,13 @@ function buildItems(env: Envelope): Item[] {
       for (const f of c.findings) {
         if (f.verdict === "rejected") continue;
         const blocking = f.verdict === "confirmed" && (f.severity === "major" || f.severity === "critical");
+        const cross = f.ref_start_ms !== undefined;
         items.push({
-          key: `${c.assertion_id}#${f.candidate}`, testId: `finding-${f.candidate}`,
-          tone: blocking ? "block" : "review", kindLabel: "AI-artifact scan",
+          key: `${c.assertion_id}#${f.candidate}`, testId: cross ? `continuity-${f.candidate}` : `finding-${f.candidate}`,
+          tone: blocking ? "block" : "review", kindLabel: cross ? "Cross-shot continuity" : "AI-artifact scan",
           title: CATEGORY[f.category] ?? f.category, time: { start_ms: f.start_ms, end_ms: f.end_ms },
+          ref: cross ? { start_ms: f.ref_start_ms!, end_ms: f.ref_end_ms! } : null,
+          aDesc: f.shot_a_description, bDesc: f.shot_b_description, entity: f.entity,
           summary: firstSentence(f.description), evidenceIds: f.evidence_ids,
           why: f.description, modelNote: f.explanation.replace(/^\[auto-clear disabled for ownership\]\s*/, ""),
           limitations: c.limitations, question: c.observation_question, regression: c.regression, check: c,
@@ -66,7 +104,9 @@ function buildItems(env: Envelope): Item[] {
       if (c.status !== "PASS" && !c.findings.some((f) => f.verdict !== "rejected")) {
         items.push(assertionItem(c, env)); // e.g. scan ERROR / NOT_CHECKED
       }
-      if (c.status === "PASS") items.push({ ...assertionItem(c, env), title: "AI-artifact scan", seen: "nothing survived review" });
+      if (c.status === "PASS") items.push({ ...assertionItem(c, env),
+        title: (c.limitations ?? []).some((l) => l.includes("shot pairs")) ? "Cross-shot continuity audit" : "AI-artifact scan",
+        seen: "nothing survived review" });
       continue;
     }
     items.push(assertionItem(c, env));
@@ -118,7 +158,7 @@ export default function RunView({ env }: { env: Envelope; fixture?: boolean }) {
   const vref = useRef<HTMLVideoElement>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const items = useMemo(() => buildItems(env), [env]);
+  const items = useMemo(() => groupCrossShot(buildItems(env)), [env]);
   const evById = useMemo(() => Object.fromEntries(env.evidence.map((e) => [e.evidence_id, e])), [env]);
 
   const firstTarget = (env.checks[0] as ScanCheck | undefined)?.target_asset_id;
@@ -251,11 +291,18 @@ function Group({ title, tone, items, empty, sel, open, setOpen, pick, frames, se
           <article key={i.key} className={`issue t-${i.tone} ${sel === i.key ? "on" : ""}`}>
             <button className="issue-head" data-testid={i.testId} onClick={() => pick(i)}
               data-focus-start-ms={i.time?.start_ms ?? ""} data-focus-end-ms={i.time?.end_ms ?? ""}>
-              {fr[0] ? <img src={`/media/${fr[Math.min(1, fr.length - 1)].sha256}`} alt="" className="thumb" />
+              {i.ref && fr.length >= 2 ? (
+                <div className="pair">
+                  <img src={`/media/${fr[0].sha256}`} alt="earlier shot" className="thumb half" />
+                  <span className="arrow">→</span>
+                  <img src={`/media/${fr[fr.length - 1].sha256}`} alt="later shot" className="thumb half" />
+                </div>)
+                : fr[0] ? <img src={`/media/${fr[Math.min(1, fr.length - 1)].sha256}`} alt="" className="thumb" />
                 : <div className="thumb ph">{i.kindLabel === "File check" ? "FILE" : "—"}</div>}
               <div className="issue-body">
                 <div className="issue-top">
                   <span className="kind">{i.kindLabel}</span>
+                  {i.ref && <span className="time">shot {span(i.ref)} →</span>}
                   {i.time && <span className="time">▶ {span(i.time)}</span>}
                   {i.regression && <span className={`reg r-${i.regression.classification}`}>{REG[i.regression.classification]}</span>}
                 </div>
@@ -270,6 +317,17 @@ function Group({ title, tone, items, empty, sel, open, setOpen, pick, frames, se
               {fr.length > 0 && <div className="strip">{fr.map((e) => (
                 <button key={e.evidence_id} onClick={() => seek(e.start_ms)} title={e.label}>
                   <img src={`/media/${e.sha256}`} alt={e.label ?? ""} /><span>{sec(e.start_ms)}</span></button>))}</div>}
+              {i.pairs && i.pairs.length > 1 && <div className="pairs">
+                <b>Shot pairs</b>
+                {i.pairs.map((p) => (
+                  <button key={p.key} onClick={() => seek(mid(p.time!))}>
+                    <span className="time">{span(p.ref!)} → {span(p.time!)}</span> {firstSentence(p.summary ?? "", 140)}
+                  </button>))}
+              </div>}
+              {i.ref && (!i.pairs || i.pairs.length === 1) && <div className="ab">
+                <button onClick={() => seek(mid(i.ref!))}><b>Earlier shot</b> ({span(i.ref)}){i.aDesc ? `: ${i.aDesc}` : ""}</button>
+                <button onClick={() => seek(mid(i.time!))}><b>Later shot</b> ({span(i.time)}){i.bDesc ? `: ${i.bDesc}` : ""}</button>
+              </div>}
               {i.summary && i.why && i.why !== i.summary && <p><b>What was flagged:</b> {i.why}</p>}
               {i.modelNote && <p><b>Reviewer model:</b> {i.modelNote}</p>}
               {!i.modelNote && <p className="plain">{plainWhy(i, fr.length)}</p>}

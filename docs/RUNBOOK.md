@@ -38,6 +38,8 @@ with a basic-auth middleware. Never route the API publicly (anyone reaching it c
      dash/quote variants normalised, letters/diacritics/case exact).
    - Events/state changes (something breaks, appears, is handed over): set `"temporal": "occurs"` — a miss in sampled
      frames is UNCERTAIN, never FAIL, and a dense 0.5 s frame grid is added. Default `throughout` = must hold in every clear frame.
+   - Keep the `gen-artifacts` (undeclared AI defects inside shots) and `continuity` (cross-shot props, wardrobe, set,
+     people) assertions: without them only the listed requirements are checked. Budget ≈ $0.65–0.75 per minute of film.
    - Bump `revision` if you change an approved contract with the same `contract_id` (contracts are immutable).
 2. Either use the UI (`http://127.0.0.1:3000/upload`: asset_id + mp4 + contract) or the CLI:
    ```bash
