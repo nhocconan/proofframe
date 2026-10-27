@@ -13,6 +13,8 @@ The pricing page does not document how native video is tokenized; video cost bel
 | SAM video, concept "person" | `sam-3.1` stream | same | 200 | 5.3 s | 72 frames | $0.0144 | 72 lines `<Nf>id<|box;x1..;w=640;h=268;c=..|><|mask;..;data=H,W,!base85|>`. Boxes are **proxy pixels**; must map to source. Text arrives in deltas and in `response.output_text.done`. |
 | ASR Vietnamese | `muse-voice-transcribe-1.0`, `/asr/transcribe` ENDPOINTING, languageBias=["Vietnamese"] | 4.96 s mono 16 kHz WAV, **espeak-ng synthetic speech** | 200 | 2.6 s | audioDurationMs=4960 | $0.0002 | Exact diacritic transcript; one turn `startMs=0,endMs=4460`. Turn-level only — no word timestamps. |
 
+Pipeline measurement (Gate 1 run `run-acf67e0ab88143719969`): frame-confirmation calls with 3 × 960 px PNG frames used 1,588–1,603 input tokens (≈ 530 per frame incl. prompt).
+
 Probe total: **$0.04597 estimated** (5 calls). `GET /v1/models` returned HTTP 200 with an empty `data` list — model availability is established by calls, not the listing.
 
 Not established by these probes: detector accuracy, timestamp precision, SAM recall, ASR accuracy on real Vietnamese speech, audio handling of spark-1.3 (documented caveat). A successful HTTP response is not qualification.

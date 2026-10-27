@@ -37,8 +37,7 @@ main-title PASS @52.2–54.0 s (real ≈50 s); sniper-jacket PASS @67.5 s and 10
 ELIGIBLE, $0.0762. 3–5 min videos use the same windowing; **not run live** (owner limited tests to ≤2 min).
 
 ## Tests
-`docker compose run --rm api python -m pytest -q -p no:cacheprovider` → **99 passed** (97 at Gate 3 + 2 temporal-semantics tests) (60 seed + 21 API/DB/jobs/budget on real Postgres
-+ 10 core pipeline (fake observer, real ffmpeg) + 6 Meta adapter failure semantics). None of these are perception benchmarks.
+`docker compose run --rm api python -m pytest -q -p no:cacheprovider` → **104 passed** (60 seed + 21 API/DB/jobs/budget + 12 core pipeline + 6 Meta adapter + 5 artifact-scan incl. parametrized cases) — API tests use real Postgres; pipeline tests use a fake observer on real ffmpeg media. None of these are perception benchmarks.
 
 ## Spend
 Ledger (`GET /v1/budget`, end of day): $0.410 settled (was $0.305 before deployment/dev runs) of $10 project cap (incl. $0.046 Gate 0 probes); 0 unknown-cost calls. All amounts are usage × list price estimates.

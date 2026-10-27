@@ -40,8 +40,8 @@ All numbers below come from live runs recorded in [`docs/BUILD_STATUS.md`](docs/
 |---|---|
 | Exact on-screen text check (Vietnamese, NFC-normalised) | Caught a one-word caption error ("Celina" vs approved "Celia") on 3/3 frames at 13.2–21.6 s; same verdict reproduced on a second run of the same bytes |
 | Wardrobe / prop / title-card checks with timestamped evidence | 60 s clip: 4 PASS + 1 FAIL + 1 UNCERTAIN (eye color not readable) for **$0.037** |
-| Undeclared-defect scan (`generation_artifact_scan`) | On an AI-generated short: confirmed a bottle that is both shattered and intact in one shot (48–50 s); surfaced an ownerless-hands insert for review. On real live-action footage: its one candidate was rejected (no false FAIL) |
-| Event semantics | "Bottle breaks" initially FAILed because sampled frames missed a 1 s event; fixed (`temporal: occurs`), now PASS on the 48.25–48.79 s interval |
+| Undeclared-defect scan (`generation_artifact_scan`) | On an AI-generated short: confirmed a bottle that is both shattered and intact in one shot (48–50 s); surfaced an ownerless-hands insert for review. On real live-action footage (*Tears of Steel*): no false FAIL — one candidate rejected (evaluator 0.5); with the stricter ownership rule (0.6) a robot-arm close-up became a REVIEW item |
+| Event semantics | "Bottle breaks" initially FAILed because sampled frames missed a 1 s event; fixed (`temporal: occurs`), now PASS with evidence on the correct 0.5 s interval |
 | Repair loop | Correct repair → **FIXED**; faulty repair → **STILL_FAILING**; repair that dropped audio → **REGRESSION**; 3rd attempt refused (cap = 2); stale receipt rejected |
 | Long video | 2-minute clip, timestamps in minute 2 mapped correctly (**$0.076**). 5-minute files: upload, seek and full pipeline verified without paid calls; est. ≈ $0.35 for 4 whole-video checks |
 | Evidence UI | Clicking a finding seeks the player into the evidence interval (Playwright, Firefox + WebKit) |
@@ -57,7 +57,7 @@ Meta adapter failure semantics, artifact-scan rules). These test our logic, **no
 2. **Coverage ledger first.** Every assertion gets a row before any model runs, so a skipped check is visible as
    `NOT_CHECKED`, never silently missing.
 3. **Blind observation.** The model is asked *what it sees*, never told the expected value or a producer's
-   "fixed" claim (enforced by a test). Long videos are split into ≤ 60 s windows with overlap.
+   "fixed" claim (enforced by a test). Long videos are split into ~60 s windows (the last may reach 70 s) with 3 s overlap.
 4. **Server-side evidence.** Model timestamps are only hints: ProofFrame extracts the actual frames with FFmpeg,
    hashes them, and asks a second, independent question on those frames.
 5. **Deterministic comparison** in code (exact text after Unicode NFC, closed categories), not by the model.
@@ -79,7 +79,7 @@ Meta adapter failure semantics, artifact-scan rules). These test our logic, **no
 | `sam-3.1` | Object tracking (box/mask grammar parsed) | Probed only ([probes](docs/CAPABILITY_PROBES.md)) |
 | `muse-voice-transcribe-1.0` | Vietnamese ASR, turn-level timestamps | Probed only |
 
-Measured: ≈ 117 input tokens per second of video at 1 fps / 640 px; ≈ 530 tokens per confirmation frame.
+Measured ([probes](docs/CAPABILITY_PROBES.md)): ≈ 117 input tokens per second of video at 1 fps / 640 px; ≈ 530 input tokens per 960 px confirmation frame (3-frame calls ≈ 1.6k tokens incl. prompt).
 
 ## Quickstart
 
@@ -88,9 +88,10 @@ Requirements: Docker with Compose v2. No GPU.
 ```bash
 git clone https://github.com/nhocconan/proofframe.git && cd proofframe
 cp .env.example .env            # set META_DEV_API=<your Meta developer API key>
-mkdir -p dropbox media && setfacl -m u:10001:rwx -m d:u:10001:rwx dropbox
+                                # PROOFFRAME_API_TOKEN is optional locally (falls back to a dev token); required for any public deployment
+mkdir -p dropbox media && setfacl -m u:10001:rwx -m d:u:10001:rwx dropbox   # Linux; containers run as uid 10001
 docker compose up -d --build db api worker web
-open http://127.0.0.1:3000      # UI; API on 127.0.0.1:8080
+# browse to http://127.0.0.1:3000 (UI); API on 127.0.0.1:8080
 ```
 
 Spend caps live in `docker-compose.yml` (`PROOFFRAME_MAX_PROJECT_COST_USD`, `PROOFFRAME_MAX_RUN_COST_USD`);
@@ -112,6 +113,8 @@ Writing contracts, the repair round trip, tests and the Traefik deployment are c
 
 - **No accuracy benchmark yet.** Two clips, a handful of assertions. Precision/recall, defect-escape rate and
   comparison with a human or another model are unmeasured.
+- **Most recorded live runs predate the latest evaluator changes** (versions are stamped in every report); later
+  changes were verified with unit tests and the specific live reruns listed in BUILD_STATUS.
 - **Sampled, not exhaustive.** 1–2 fps video passes plus a few frames per check; events shorter than the sampling
   interval can be missed. Every report says so.
 - **One model family.** Localization, confirmation and adjudication all use `muse-spark-1.3`; agreement between
