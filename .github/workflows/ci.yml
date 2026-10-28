@@ -1,0 +1,33 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: proofframe, POSTGRES_PASSWORD: proofframe, POSTGRES_DB: proofframe }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U proofframe" --health-interval 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: pip install -r requirements.lock && pip install -e ".[dev]"
+      # no paid calls in CI: tests use fake observers; no META_DEV_API secret is configured
+      - run: python -m pytest -q -p no:cacheprovider
+        env: { DATABASE_URL: "postgresql+psycopg://proofframe:proofframe@127.0.0.1:5432/proofframe" }
+  web:
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit

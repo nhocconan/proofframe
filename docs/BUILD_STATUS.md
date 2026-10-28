@@ -131,6 +131,8 @@ only — it showed "1 adjudicated" for a refused call; the observed text now say
 "no surviving defects"). The FAIL-kept-on-budget-stop path is covered by fake-observer tests only.
 Tests: `docker compose run --rm -T -v "$PWD/src:/app/src:ro" -v "$PWD/tests:/app/tests:ro" api python -m pytest -q`
 → 123 passed. Same suite in a clean python:3.12-slim container (CI simulation) → 123 passed.
+CI: `.github/workflows/ci.yml` (pytest + Postgres service + ffmpeg; web `tsc --noEmit`); no secrets, no paid calls.
+Simulated locally on an empty postgres:16 + python:3.12-slim → 123 passed; first GitHub run not yet observed.
 Secret scan: gitleaks v8.21.2 over all 5 commits → no leaks; no `.env`/`private/`/`media/`/video paths in history.
 
 ## Known gaps / next

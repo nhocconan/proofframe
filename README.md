@@ -48,7 +48,7 @@ All numbers below come from live runs recorded in [`docs/BUILD_STATUS.md`](docs/
 | Budget stop | Owner clip with the run cap lowered to $0.30: spent $0.259; both audits UNCERTAIN ("18 of 27 calls not made") instead of being discarded, never PASS. Keeping a confirmed FAIL through a budget stop is covered by tests only |
 | Evidence UI | Clicking a finding seeks the player into the evidence interval (Playwright, Firefox + WebKit) |
 
-Test suite: **123 tests** (seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
+Test suite: **123 tests** (CI runs them on every push: `.github/workflows/ci.yml`) (seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
 Meta adapter failure semantics, artifact-scan and continuity-audit rules). These test our logic, **not** video-understanding accuracy.
 
 ## How it works
