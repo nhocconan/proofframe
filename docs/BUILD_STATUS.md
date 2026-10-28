@@ -106,8 +106,35 @@ rejected at adjudication), D8 bag material. Unlabelled confirmed findings (owner
 on the shop table, bottle growing as it falls, boombox handle color. The dev clip was used for tuning — numbers
 are optimistic; no held-out set. Tests: 114 passed.
 
+## Budget plan and partial results (evaluator 0.13)
+Problem: on long films the stages that run last (continuity) found the run cap already spent, then raised
+NOT_CHECKED and discarded findings already paid for. Parallel calls also held upper-bound reservations
+(≈ $0.05 per 4-image call vs ≈ $0.011 real), so the cap refused calls while real spend still had room.
+Changes (`src/proofframe/verify/plan.py`, `providers/meta.py`, `verify/anomaly.py`, `verify/pipeline.py`):
+- Pre-run plan from free FFmpeg facts (shots, durations) and per-call costs measured on run-ee24dd80868649a4b3b1.
+  If the estimate exceeds the remaining budget (`PgBudget.remaining`), knobs shrink in a fixed order (registry
+  pairs, cross-shot adjudication cap, grid step, scan adjudication cap); adjacent shot pairs are never cut.
+  Plan + reductions are in the envelope (`plan`), on each affected check (limitations) and in the UI.
+  Estimates: 60 s clip $0.88 (measured $0.64; adjudication counted at its cap); 5-min film $2.06 full →
+  registry pairs 12 → 6 to fit $2.00. The 5-min figure is an estimate; no 5-min live run yet.
+- Budget stop no longer discards work: confirmed findings stay (a confirmed FAIL stays FAIL), otherwise
+  UNCERTAIN with "Budget exhausted: X of Y call(s) not made"; NOT_CHECKED only when every call was refused.
+- Observer waits for its own in-flight calls to settle and retries before treating a refusal as final.
+- Run cap overridable: `PROOFFRAME_MAX_RUN_COST_USD` (default 2).
+
+Live check (owner clip, full r4 contract, worker started with `PROOFFRAME_MAX_RUN_COST_USD=0.30`):
+run-435966aa67d14703a7e6 — plan est. $0.93 full vs $0.30 → all 7 reductions, still over (`fits: false`);
+spent **$0.259** (≤ cap); 8 declared checks PASS; artifact scan UNCERTAIN (1 of 4 calls refused);
+continuity UNCERTAIN (18 of 27 calls refused); decision REVIEW, no PASS on incomplete coverage.
+This run predates two display fixes in the committed 0.13 (the "adjudicated" count now counts completed calls
+only — it showed "1 adjudicated" for a refused call; the observed text now says the budget ran out instead of
+"no surviving defects"). The FAIL-kept-on-budget-stop path is covered by fake-observer tests only.
+Tests: `docker compose run --rm -T -v "$PWD/src:/app/src:ro" -v "$PWD/tests:/app/tests:ro" api python -m pytest -q`
+→ 123 passed. Same suite in a clean python:3.12-slim container (CI simulation) → 123 passed.
+Secret scan: gitleaks v8.21.2 over all 5 commits → no leaks; no `.env`/`private/`/`media/`/video paths in history.
+
 ## Known gaps / next
-- All live runs above used evaluator 0.1; 0.2/0.3 changes (skip not_visible segments, absorb ≤10 s tail window, input-seek frames) are covered only by fake-observer tests.
+- 5-minute film: budget plan exercised only by tests and a low-cap 60 s run; no 5-minute live run yet.
 - Gate 3 did not include a generative shot replacement: REGENERATE_SHOT has no executor here (only the deterministic composite executor).
 - SAM is probed but not used in the pipeline; the "blue jacket" zero-record result is an unverified negative.
 - Gate 2 partial: coverage ledger, ERROR/NOT_CHECKED semantics, timeout/invalid-JSON/budget tests exist; NOT done: SAM tracking in the pipeline,

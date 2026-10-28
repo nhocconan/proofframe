@@ -27,6 +27,9 @@ class Budget(Protocol):
                usage: dict[str, Any] | None, remote_request_id: str | None,
                outcome: str) -> None: ...
 
+    # Optional: remaining(*, run_id) -> float | None — headroom under the caps. When present, the pipeline
+    # plans the run to fit it before any paid call (verify/plan.py); when absent the full plan runs.
+
 
 class Store(Protocol):
     """Content-addressed immutable blob store (sha256)."""

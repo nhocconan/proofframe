@@ -129,9 +129,10 @@ def merge_candidates(cands: list[Candidate], gap_ms: int = 1500) -> list[Candida
 
 
 def decide_scan(findings: list[dict], *, candidates_total: int, adjudicated: int, frames_scanned: int,
-                calls_failed: int) -> tuple[str, str]:
+                calls_failed: int, budget_skipped: int = 0, calls_total: int | None = None) -> tuple[str, str]:
     """FAIL on any confirmed major/critical defect; UNCERTAIN on confirmed-minor/unclear, unadjudicated
-    candidates or failed calls; PASS only when every stage ran and nothing survived adjudication."""
+    candidates, failed calls or calls skipped by the budget; NOT_CHECKED when the budget refused every call;
+    PASS only when every stage ran and nothing survived adjudication. A budget stop keeps paid findings."""
     confirmed = [f for f in findings if f["verdict"] == "confirmed"]
     blocking = [f for f in confirmed if f["severity"] in ("major", "critical")]
     unclear = ([f for f in findings if f["verdict"] in ("unclear", "review")]
@@ -141,10 +142,16 @@ def decide_scan(findings: list[dict], *, candidates_total: int, adjudicated: int
             f"{sum(f['verdict'] == 'rejected' for f in findings)} rejected, "
             f"{sum(f['verdict'] == 'unclear' for f in findings)} unclear, "
             f"{sum(f['verdict'] == 'review' for f in findings)} for human review.")
+    partial = (f" Budget exhausted: {budget_skipped} of {calls_total} call(s) not made — coverage incomplete."
+               if budget_skipped else "")
     if blocking:
         return "FAIL", base + " Confirmed: " + "; ".join(
             f"{f['category']}/{f['severity']} @{f['start_ms']/1000:.1f}-{f['end_ms']/1000:.1f}s: {f['description']}"
-            for f in blocking)
+            for f in blocking) + partial
+    if budget_skipped and calls_total is not None and budget_skipped >= calls_total:
+        return "NOT_CHECKED", base + partial
+    if budget_skipped:
+        return "UNCERTAIN", base + partial
     if calls_failed:
         return "UNCERTAIN", base + f" {calls_failed} scan call(s) failed — coverage incomplete."
     if unclear or candidates_total > adjudicated:

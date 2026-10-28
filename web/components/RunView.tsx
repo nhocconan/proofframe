@@ -170,6 +170,8 @@ export default function RunView({ env }: { env: Envelope; fixture?: boolean }) {
   const cov = env.coverage;
   const skipped = Math.max(0, (cov.contract_total ?? env.checks.length) - (cov.selected ?? env.checks.length));
   const hasScan = (env.checks as ScanCheck[]).some((c) => c.findings !== undefined);
+  const budgetStop = env.checks.filter((c) => /Budget exhausted|budget exhausted|cap .* would be exceeded/.test(c.rationale ?? ""))
+    .map((c) => c.assertion_id);
   const regs = env.checks.filter((c) => c.regression);
   const regCount = (k: string) => regs.filter((c) => c.regression?.classification === k).length;
   const d = env.decision.decision;
@@ -209,6 +211,12 @@ export default function RunView({ env }: { env: Envelope; fixture?: boolean }) {
 
       {skipped > 0 && <div className="warn" data-testid="partial-run">
         <b>Partial run.</b> Only {cov.selected} of {cov.contract_total} requirements were checked — this is not a verdict on the whole video.</div>}
+      {budgetStop.length > 0 && <div className="warn" data-testid="budget-stop">
+        <b>Budget ran out during the run.</b> {budgetStop.join(", ")} stopped early: findings already paid for are kept,
+        but these checks cannot pass — rerun with a higher run cap for full coverage.</div>}
+      {(env.plan?.reductions.length ?? 0) > 0 && <div className="note" data-testid="budget-plan">
+        <b>Scaled to budget.</b> Full plan est. ${env.plan!.full_estimate_usd.toFixed(2)}, ${(env.plan!.budget_usd ?? 0).toFixed(2)} available,
+        so: {env.plan!.reductions.join("; ")}.{env.plan!.fits ? "" : " Still over budget — some calls may not be made."}</div>}
       {!hasScan && <div className="warn" data-testid="no-scan">
         <b>No AI-artifact scan.</b> Defects nobody wrote a requirement for (floating hands, morphing props…) were not looked for.</div>}
 

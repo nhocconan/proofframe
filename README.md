@@ -44,10 +44,11 @@ All numbers below come from live runs recorded in [`docs/BUILD_STATUS.md`](docs/
 | Event semantics | "Bottle breaks" initially FAILed because sampled frames missed a 1 s event; fixed (`temporal: occurs`), now PASS with evidence on the correct 0.5 s interval |
 | Repair loop | Correct repair → **FIXED**; faulty repair → **STILL_FAILING**; repair that dropped audio → **REGRESSION**; 3rd attempt refused (cap = 2); stale receipt rejected |
 | Cross-shot continuity audit | On a 60 s AI-generated short (13 shots): caught a boombox shrinking to hand size between scenes, its design changing, and a watch appearing/disappearing between consecutive shots; **4–5 of 8** labelled must-catch defects surfaced per full run (incl. the artifact scan), **0** false FAIL on real live-action footage — see [evaluation](#evaluation) |
-| Long video | 2-minute clip, timestamps in minute 2 mapped correctly (**$0.076**). 5-minute files: upload, seek and full pipeline verified without paid calls; est. ≈ $0.35 for 4 whole-video checks |
+| Long video | 2-minute clip, timestamps in minute 2 mapped correctly (**$0.076**). 5-minute files: upload, seek and full pipeline verified without paid calls. A pre-run cost plan shrinks the audits to the remaining budget (5-min film, full contract: est. $2.06 → fits $2 by halving long-range pairs; not yet run live) |
+| Budget stop | Owner clip with the run cap lowered to $0.30: spent $0.259; both audits UNCERTAIN ("18 of 27 calls not made") instead of being discarded, never PASS. Keeping a confirmed FAIL through a budget stop is covered by tests only |
 | Evidence UI | Clicking a finding seeks the player into the evidence interval (Playwright, Firefox + WebKit) |
 
-Test suite: **114 tests** (seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
+Test suite: **123 tests** (seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
 Meta adapter failure semantics, artifact-scan and continuity-audit rules). These test our logic, **not** video-understanding accuracy.
 
 ## How it works
@@ -102,8 +103,9 @@ docker compose up -d --build db api worker web
 ```
 
 Spend caps live in `docker-compose.yml` (`PROOFFRAME_MAX_PROJECT_COST_USD`, `PROOFFRAME_MAX_RUN_COST_USD`);
-paid calls reserve a conservative amount *before* each request, and a refused reservation makes the check
-`NOT_CHECKED`.
+paid calls reserve a conservative amount *before* each request. Before the first call the run is planned to fit
+the remaining budget (reductions are listed on the run page). If the budget still runs out, results already paid
+for are kept and the affected check can no longer PASS (`UNCERTAIN`, or `NOT_CHECKED` if nothing ran).
 
 Verify a video from the CLI (same service the UI uses):
 

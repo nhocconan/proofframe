@@ -13,6 +13,7 @@ import base64
 import hashlib
 import json
 import random
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -27,6 +28,41 @@ PRICES_USD_PER_MTOK = {"muse-spark-1.3": (1.25, 4.25)}  # dev.meta.ai pricing pa
 VIDEO_TOKENS_PER_FRAME_EST = 160   # measured ~117/s at fps=1, 640px (CAPABILITY_PROBES.md) + margin
 IMAGE_TOKENS_EST = 2500            # not documented; conservative reservation only
 PROMPT_TOKENS_EST = 1500
+
+
+class _WaitingBudget:
+    """Reservations are conservative upper bounds (~4x the real cost of a frame call). With parallel calls,
+    open reservations can make the cap refuse a call although real spend leaves room. On refusal, wait for
+    this observer's in-flight calls to settle and retry; refuse for real only when nothing is in flight."""
+
+    def __init__(self, inner: Budget):
+        self.inner = inner
+        self._cv = threading.Condition()
+        self._open: set[str] = set()
+
+    def __getattr__(self, name):  # remaining(), summary() etc. pass through
+        return getattr(self.inner, name)
+
+    def reserve(self, **kw) -> str:
+        with self._cv:
+            while True:
+                try:
+                    rid = self.inner.reserve(**kw)
+                except BudgetExhausted:
+                    if not self._open:
+                        raise
+                    self._cv.wait(timeout=30)
+                    continue
+                self._open.add(rid)
+                return rid
+
+    def settle(self, reservation_id: str, **kw) -> None:
+        try:
+            self.inner.settle(reservation_id, **kw)
+        finally:
+            with self._cv:
+                self._open.discard(reservation_id)
+                self._cv.notify_all()
 
 
 @dataclass
@@ -54,6 +90,8 @@ class MetaObserver:
     def __post_init__(self) -> None:
         if self.client is None:
             self.client = httpx.Client(timeout=self.timeout_s)
+        if not isinstance(self.budget, _WaitingBudget):
+            self.budget = _WaitingBudget(self.budget)
         self._h = {"Authorization": f"Bearer {self.api_key}"}
 
     # ---------- cost helpers

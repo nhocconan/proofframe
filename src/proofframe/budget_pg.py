@@ -61,6 +61,15 @@ class PgBudget:
                 "spent_settled_usd": float(settled), "reserved_open_usd": float(opened),
                 "unknown_cost_calls": int(unknown)}
 
+    def remaining(self, *, run_id: str) -> float | None:
+        """Headroom under both caps for this run (counted = settled actual + open reservations)."""
+        if self.s.max_project_cost_usd is None or self.s.max_run_cost_usd is None:
+            return None
+        with Session(self.engine) as db:
+            project = float(db.scalar(select(self._counted())) or 0.0)
+            run = float(db.scalar(select(self._counted()).where(BudgetLedger.run_id == run_id)) or 0.0)
+        return max(0.0, min(self.s.max_project_cost_usd - project, self.s.max_run_cost_usd - run))
+
     # -- Budget protocol --------------------------------------------------------------------
     def reserve(self, *, run_id: str, provider: str, model: str, amount_usd: float,
                 purpose: str) -> str:

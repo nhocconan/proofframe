@@ -31,6 +31,7 @@ export type Envelope = {
   assets: EnvAsset[]; checks: Check[]; evidence: Evidence[]; traces: Trace[];
   coverage: Record<string, number>;
   cost: { estimated_usd: number; unknown_cost_calls: number; reserved_open_usd?: number };
+  plan?: { estimate_usd: number; full_estimate_usd: number; budget_usd: number | null; reductions: string[]; fits: boolean };
   labels?: string[];
 };
 export type RunRow = {

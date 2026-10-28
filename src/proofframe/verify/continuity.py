@@ -166,7 +166,8 @@ INSERT_MAX_MS = 3500       # a shorter middle shot is treated as an insert: also
 
 
 def plan_pairs(n_shots: int, log: list[dict], label_to_shot: dict[str, int],
-               shots: list[tuple[int, int]] | None = None) -> list[tuple[int, int, list[str]]]:
+               shots: list[tuple[int, int]] | None = None,
+               max_registry: int = MAX_REGISTRY_PAIRS) -> list[tuple[int, int, list[str]]]:
     """Adjacent pairs, pairs bridging short insert shots, then registry pairs (first vs later appearance)."""
     pairs: dict[tuple[int, int], list[str]] = {(i, i + 1): [] for i in range(n_shots - 1)}
     for i in range(1, n_shots - 1):
@@ -174,24 +175,24 @@ def plan_pairs(n_shots: int, log: list[dict], label_to_shot: dict[str, int],
             pairs[(i - 1, i + 1)] = []
     shots_of: dict[str, list[int]] = {}
     for ent in log:
-        shots = sorted({label_to_shot[a["frame"]] for a in ent.get("appearances", []) if a["frame"] in label_to_shot})
-        if len(shots) >= 2 and ent.get("kind") in ("prop", "character"):
-            shots_of[ent["entity"]] = shots
-    for ent, shots in shots_of.items():
-        for i in range(len(shots)):
-            for j in range(i + 1, len(shots)):
-                if (shots[i], shots[j]) in pairs:
-                    pairs[(shots[i], shots[j])].append(ent)
+        seen = sorted({label_to_shot[a["frame"]] for a in ent.get("appearances", []) if a["frame"] in label_to_shot})
+        if len(seen) >= 2 and ent.get("kind") in ("prop", "character"):
+            shots_of[ent["entity"]] = seen
+    for ent, seen in shots_of.items():
+        for i in range(len(seen)):
+            for j in range(i + 1, len(seen)):
+                if (seen[i], seen[j]) in pairs:
+                    pairs[(seen[i], seen[j])].append(ent)
     extra: list[tuple[int, int, str]] = []
-    for ent, shots in shots_of.items():
-        first = shots[0]
-        for later in reversed(shots[1:]):
+    for ent, seen in shots_of.items():
+        first = seen[0]
+        for later in reversed(seen[1:]):
             if later - first > 1:
                 extra.append((first, later, ent))
     added = 0
     for a, b, ent in sorted(extra, key=lambda x: -(x[1] - x[0])):
         if (a, b) not in pairs:
-            if added >= MAX_REGISTRY_PAIRS:
+            if added >= max_registry:
                 continue
             added += 1
         pairs.setdefault((a, b), []).append(ent)
