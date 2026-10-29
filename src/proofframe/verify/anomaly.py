@@ -154,6 +154,9 @@ def decide_scan(findings: list[dict], *, candidates_total: int, adjudicated: int
         return "UNCERTAIN", base + partial
     if calls_failed:
         return "UNCERTAIN", base + f" {calls_failed} scan call(s) failed — coverage incomplete."
+    if any(f.get("verdict") not in {"confirmed", "rejected", "unclear", "review"}
+           or f.get("severity") not in SEVERITIES for f in findings):
+        return "UNCERTAIN", base + " Invalid finding verdict/severity requires review."
     if unclear or candidates_total > adjudicated:
         return "UNCERTAIN", base + " Unresolved candidates need human review."
     return "PASS", base + " No defect survived adjudication (sampled scan, not proof of absence)."

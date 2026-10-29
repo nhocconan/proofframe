@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 
 from proofframe.providers.meta import MetaObserver
 from tests.test_core_pipeline import CapBudget
@@ -32,16 +33,33 @@ def ok_body(text, status="completed"):
             "incomplete_details": None, "error": None}
 
 
-def call(o, tmp_path):
+def call(o, tmp_path, schema=None):
     img = tmp_path / "f.png"
     img.write_bytes(b"\x89PNG")
-    return o.observe_images(images=[("F1", img)], question="q", schema={}, schema_name="s", purpose="confirm:x")
+    return o.observe_images(images=[("F1", img)], question="q", schema=schema or {}, schema_name="s", purpose="confirm:x")
 
 
 def test_invalid_json_is_invalid_output_and_still_costed(tmp_path):
     o, b = obs_with(lambda req: httpx.Response(200, json=ok_body("not json")))
-    r = call(o, tmp_path)
+    r = call(o, tmp_path, schema={"type": "object", "additionalProperties": False,
+                                 "required": ["frames"], "properties": {"frames": {"type": "array"}}})
     assert r.outcome == "invalid_output" and not r.ok and b.settled[0][0] > 0
+
+
+@pytest.mark.parametrize("text", ['{"verdict":"bogus"}', '{}', '[]',
+                                  '{"verdict":"confirmed","extra":1}',
+                                  '{"verdict":"confirmed","score":NaN}',
+                                  '{"verdict":"confirmed","score":1e999}'])
+def test_schema_invalid_output_never_ok_and_still_costed(tmp_path, text):
+    o, b = obs_with(lambda req: httpx.Response(200, json=ok_body(text)))
+    image = tmp_path / "f.png"
+    image.write_bytes(b"image")
+    schema = {"type": "object", "additionalProperties": False, "required": ["verdict"],
+              "properties": {"verdict": {"type": "string", "enum": ["confirmed", "rejected"]}}}
+    result = o.observe_images(images=[("F1", image)], question="q", schema=schema,
+                              schema_name="judge", purpose="confirm:x")
+    assert not result.ok and result.outcome == "invalid_output" and result.parsed is None
+    assert b.settled[0][0] > 0
 
 
 def test_incomplete_response_is_not_ok(tmp_path):
@@ -79,6 +97,7 @@ def test_media_bytes_not_in_request_digest(tmp_path):
         seen["body"] = json.loads(req.content)
         return httpx.Response(200, json=ok_body('{"frames": []}'))
     o, _ = obs_with(cap)
-    r = call(o, tmp_path)
+    r = call(o, tmp_path, schema={"type": "object", "additionalProperties": False,
+                                 "required": ["frames"], "properties": {"frames": {"type": "array"}}})
     assert r.ok and "data:image/png;base64" in json.dumps(seen["body"])
     assert "base64" not in json.dumps(r.trace)

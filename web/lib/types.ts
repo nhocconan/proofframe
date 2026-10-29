@@ -11,9 +11,10 @@ export type Check = {
   observation_question?: string; scope: Interval | null; focus: Interval | null;
   evidence_ids: string[]; trace_ids: string[]; rationale: string; limitations: string[];
   regression: Regression | null;
+  technical_measurement?: { value: number; intervals: Interval[]; limitations: string[] };
 };
 export type Evidence = {
-  evidence_id: string; asset_id: string; kind: "frame" | "clip" | "metadata";
+  evidence_id: string; asset_id: string; kind: "frame" | "clip" | "metadata" | "scan" | "audio" | "reference";
   start_ms: number; end_ms: number; sha256: string; url: string; role?: string; label?: string;
 };
 export type Trace = {

@@ -1,0 +1,34 @@
+{
+  "contract_id": "draft-audio-delivery",
+  "revision": 1,
+  "tenant_id": "demo-tenant",
+  "profile": "film",
+  "profile_revision": "audio-qc-draft-v1",
+  "assets": [{"asset_id": "master-audio", "media_type": "audio"}],
+  "assertions": [
+    {
+      "assertion_id": "programme-loudness",
+      "source_pointer": "/delivery/audio/loudness",
+      "target_asset_id": "master-audio",
+      "predicate": "Integrated loudness is -23 LUFS within 0.2 LU",
+      "expected": "-23",
+      "global_sentinel": true,
+      "observation": {
+        "kind": "technical", "subject": "master audio", "attribute": "integrated loudness",
+        "comparator": "technical", "technical_metric": "integrated_loudness_lufs", "tolerance": 0.2
+      }
+    },
+    {
+      "assertion_id": "true-peak-limit",
+      "source_pointer": "/delivery/audio/true_peak",
+      "target_asset_id": "master-audio",
+      "predicate": "Maximum true peak is at most -1 dBTP",
+      "expected": "-1",
+      "global_sentinel": true,
+      "observation": {
+        "kind": "technical", "subject": "master audio", "attribute": "maximum true peak",
+        "comparator": "technical", "technical_metric": "true_peak_dbtp", "technical_relation": "at_most"
+      }
+    }
+  ]
+}

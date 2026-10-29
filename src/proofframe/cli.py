@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import os
 import sys
 import time
@@ -35,7 +36,7 @@ def _ok(r: httpx.Response) -> dict:
 def upload(c: httpx.Client, asset_id: str, path: Path, media_type: str = "video") -> dict:
     with open(path, "rb") as fh:
         return _ok(c.post("/v1/assets", data={"asset_id": asset_id, "media_type": media_type},
-                          files={"file": (path.name, fh, "video/mp4")}))
+                          files={"file": (path.name, fh, mimetypes.guess_type(path.name)[0] or "application/octet-stream")}))
 
 
 def wait(c: httpx.Client, run_id: str, timeout_s: int = 1800) -> dict:
@@ -66,7 +67,8 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("doctor")
     v = sub.add_parser("verify")
     v.add_argument("--contract", required=True, type=Path)
-    v.add_argument("--video", action="append", required=True, help="asset_id=/path/to.mp4")
+    v.add_argument("--video", action="append", help="asset_id=/path/to.mp4")
+    v.add_argument("--audio", action="append", help="asset_id=/path/to.wav")
     v.add_argument("--assertions")
     v.add_argument("--wait", action="store_true")
     v.add_argument("--out", type=Path)
@@ -81,6 +83,8 @@ def main(argv: list[str] | None = None) -> None:
     rv.add_argument("--wait", action="store_true")
     rv.add_argument("--out", type=Path)
     a = p.parse_args(argv)
+    if a.cmd == "verify" and not (a.video or a.audio):
+        p.error("verify requires at least one --video or --audio asset")
 
     with _c() as c:
         if a.cmd == "doctor":
@@ -92,9 +96,10 @@ def main(argv: list[str] | None = None) -> None:
             contract = json.loads(a.contract.read_text(encoding="utf-8"))
             ck = _ok(c.post("/v1/contracts", json=contract))
             assets = []
-            for spec in a.video:
+            for spec, media_type in ([(s, "video") for s in a.video or []]
+                                     + [(s, "audio") for s in a.audio or []]):
                 aid, path = spec.split("=", 1)
-                av = upload(c, aid, Path(path))
+                av = upload(c, aid, Path(path), media_type=media_type)
                 print(f"asset {aid} rev {av['revision']} sha256 {av['sha256']} {av.get('duration_ms')}ms")
                 assets.append({"asset_id": aid, "sha256": av["sha256"]})
             body = {"contract_sha256": ck["contract_sha256"], "assets": assets, "run_mode": "live"}

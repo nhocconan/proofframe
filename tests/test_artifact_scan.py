@@ -30,6 +30,13 @@ def test_decide_scan_rules():
     assert anomaly.decide_scan([f("rejected")], **{**kw, "candidates_total": 9})[0] == "UNCERTAIN"
 
 
+@pytest.mark.parametrize("verdict,severity", [("bogus", "major"), ("confirmed", "bogus"), ("rejected", "bogus")])
+def test_invalid_finding_cannot_pass(verdict, severity):
+    status, _ = anomaly.decide_scan([f(verdict, severity)], candidates_total=1, adjudicated=1,
+                                     frames_scanned=30, calls_failed=0)
+    assert status == "UNCERTAIN"
+
+
 def test_merge_candidates_groups_nearby_same_category():
     C = anomaly.Candidate
     m = anomaly.merge_candidates([C(5000, 6000, "anatomy", "minor", "a", {"video"}),

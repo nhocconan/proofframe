@@ -36,6 +36,30 @@ URLs below identify primary sources. Repository defaults can change; pin reviewe
 
 ## Verification boundary
 
+2026-10-29 audit additions (primary abstracts/documentation inspected; no upstream experiments reproduced):
+
+| ID | Source | Scope | Limit |
+|---|---|---|---|
+| S29 | https://arxiv.org/abs/2605.15199 | EntityBench: entity schedules and fidelity-gated cross-shot scoring | Generation benchmark, not ProofFrame detector qualification |
+| S30 | https://arxiv.org/abs/2605.20183 | MSAVBench: hybrid rubrics/tool-grounded evaluation | Abstract inspected; reported correlation not reproduced |
+| S31 | https://github.com/Vchitect/VBench/blob/master/VBench-2.0/README.md | Specialist/custom-video evaluation routes | README inspected; no code/weights imported or tested |
+| S32 | https://www.telestream.net/telestream-support/vidchecker/faq.htm | Industrial technical-QC coverage | Vendor documentation, not an accuracy benchmark |
+| S33 | https://www.ffmpeg.org/ffmpeg-filters.html | Black/freeze and audio-analysis capabilities | Decoded black/freeze/silence checks subsequently implemented and tested on synthetic controls; no detector qualification claim |
+| S34 | https://arxiv.org/abs/2604.01569 | VideoZeroBench v2: separate answer and evidence evaluation | Abstract inspected; domain/task differs |
+| S35 | https://arxiv.org/abs/2609.28991 | Stage-intervention video-agent evaluation | Abstract inspected; transfer to ProofFrame untested |
+| S36 | https://arxiv.org/abs/2608.15574 | Citation verifier ablations | Abstract inspected; no claim its results transfer to film QC |
+| S37 | https://www.telestream.net/vidchecker/specs.htm | Vendor technical/audio QC specification | Inspected 2026-10-29; product not executed or benchmarked |
+| S38 | https://interrasystems.com/file-based-qc.php/QS/video_tutorial-baton.php | BATON decoded QC and integration capabilities | Vendor documentation inspected; no independent accuracy comparison |
+| S39 | https://tech.ebu.ch/docs/r/r128.pdf | EBU R128 v5 (2023), programme loudness/true-peak delivery guidance | PDF read 2026-10-29; no claim our meter is certified or full compliance implemented |
+| S40 | https://docs.twelvelabs.io/api-reference/analyze-videos | Structured timestamped analysis, sync/async/batch endpoints | Documentation read; no adapter/API run or model qualification |
+| S41 | https://arxiv.org/abs/2606.24797 | EG-VQA v2 (2026-10-04), evidence faithfulness | Abstract inspected; experiment not reproduced |
+| S42 | https://arxiv.org/abs/2607.11862 | Evidence-Backed VQA, temporal segments and masklets | Abstract inspected; code/weights not imported or tested |
+| S43 | https://github.com/m-bain/whisperX | Transcription, word alignment and diarization; BSD-2-Clause declaration | README inspected; transitive model licenses and domain accuracy not qualified |
+
+The industrial wave also inspected the installed FFmpeg `-h filter=ebur128` options and executed real/synthetic audio checks. The FFmpeg web filter page timed out on this pass; local execution establishes supported flags, not standards conformance. New code is self-written; no third-party source or weights were copied.
+
+See `IMPLEMENTATION_SOTA_AUDIT_2026-10-29.md` for current local checks and WHY-003 historical evidence. The original research boundary below describes the initial handoff session.
+
 The review read primary documentation and selected implementation files using web and GitHub tools. Downloading whole repositories into this runtime failed because the runtime could not resolve github.com. Consequently, NO upstream test suite, paid API, video generation job, or model evaluation was run here. The contract harness shipped in this package is newly authored and tested separately; its test report is not a perception benchmark.
 
 Public source availability does not grant rights to client footage, trademarks, training data, voices, model weights or all transitive dependencies. Preserve notices when importing licensed code and document what was newly built during the hackathon.

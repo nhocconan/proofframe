@@ -15,3 +15,10 @@ Use the existing project's compatible conventions. Keep the typed domain indepen
 The initial seed supports conservative same-target repair authorization and constant positive-speed timeline mapping only. Extend these with tests before exposing upstream source edits, nested timelines, nonlinear retimes, transitions or new automation permissions.
 
 Run tests after changes; record actual commands and failures in docs/BUILD_STATUS.md. Keep source/license/provenance records current. The next task is an actual video-to-evidence vertical slice, not another design document.
+
+Agent working artifacts belong in gitignored `private/`; shipped operational guidance belongs in `docs/`.
+
+## Verification rules
+
+1. Validate provider JSON locally against the requested schema before accepting it. Unknown verdicts, severities, non-finite numbers and unresolved entity correspondence must never produce PASS. Enforcement: adapter, continuity and artifact-scan regression tests in the required pytest CI gate.
+2. Score distinct defect claims with one-to-one matching. Human adjudication takes precedence over automatic overlap and is scoped to its baseline; unresolved findings cannot establish precision. Entity identity alone does not establish a shared root cause. Enforcement: evaluation regression tests in the required pytest CI gate.

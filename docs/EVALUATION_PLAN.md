@@ -2,6 +2,10 @@
 
 This plan defines future measurements. No model accuracy, repair-success rate or savings have been measured by this handoff.
 
+Implementation update (2026-10-29): `scripts/score_findings.py` now executes offline one-to-one event matching with separate confirmed/surfaced tracks, explicit adjudication and recorded judge controls. See `RUNBOOK.md` for input formats and commands. Existing development catch counts predate this scorer; do not compare old broad-overlap counts with its outputs without rescoring. A frozen owner-adjudicated holdout and B0–B4 experiment remain unexecuted.
+
+`scripts/evaluate_dataset.py` additionally validates frozen media/label/report hashes, target and contract bindings, complete baseline cohorts and source-group/media separation across splits. Human finding adjudications are scoped to each baseline. It aggregates the existing scorer without converting missing costs/review measurements to zero. The template is `examples/evaluation_dataset/manifest.template.json`; a passing manifest is execution hygiene, not evidence that its declared human provenance or pre-tuning holdout history is authentic.
+
 ## Baselines
 
 B0: current owner workflow: production output reviewed/repaired with the actual Opus model/settings the owner uses. Record human time, calls, retries, accepted defects and final outcome. Do not call the model's verdict ground truth.

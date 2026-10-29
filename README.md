@@ -120,6 +120,10 @@ Writing contracts, the repair round trip, tests and the Traefik deployment are c
 
 ## Evaluation
 
+The shared core now supports decoded black/freeze/silence measurements with source-time evidence and zero model calls for technical-only runs. Offline scoring separates confirmed findings from review items, uses one-to-one event matching, respects human adjudication and supports recorded judge controls. See the [runbook](docs/RUNBOOK.md#decoded-technical-qc) for the runnable contract and commands. These additions do not establish perception accuracy or SOTA status; the development results below predate them.
+
+Audio delivery checks now measure integrated loudness/true peaks, including audio-only assets via `--audio`. Fractional tolerances, directional limits and printed-meter resolution are explicit. A [frozen-cohort comparison command](docs/RUNBOOK.md#frozen-cohort-baseline-comparison) binds baseline results to identical media/contracts and rejects cross-split leakage. The [industrial research decisions](docs/RESEARCH_AND_DECISIONS.md#6-industrial-implementation-decisions-2026-10-29) distinguish implemented measurements from deferred specialist capabilities.
+
 A small **development** evaluation, not a benchmark. Labels: 11 defects (8 must-catch) on a 60 s AI-generated
 short, written by a reviewer from 2 fps contact sheets *before* the continuity audit was built, not yet
 confirmed by the film's owner. The same clip was used to improve the method, so these numbers are optimistic;

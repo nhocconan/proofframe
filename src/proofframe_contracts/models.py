@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 Identifier = Annotated[str, Field(min_length=1, pattern=r"^[A-Za-z0-9_.:-]+$")]
 Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
@@ -96,8 +97,11 @@ class ObservationSpec(Record):
     attribute: Nonempty
     comparator: Literal["category_equals", "exact_text_nfc", "technical", "anomaly_scan", "continuity_audit"]
     vocabulary: tuple[Nonempty, ...] = ()
-    technical_metric: Literal["duration_ms", "has_audio", "width", "height"] | None = None
-    tolerance: int = Field(default=0, ge=0)
+    technical_metric: Literal["duration_ms", "has_audio", "width", "height",
+                              "black_duration_ms", "freeze_duration_ms", "silence_duration_ms",
+                              "integrated_loudness_lufs", "true_peak_dbtp"] | None = None
+    tolerance: int | float = Field(default=0, ge=0)
+    technical_relation: Literal["equals", "at_most", "at_least"] = "equals"
     # throughout: the attribute must hold in every clear sampled frame of the scope (state).
     # occurs: an event/state reached at some point in the scope; sampled misses are UNCERTAIN, never FAIL.
     temporal: Literal["throughout", "occurs"] = "throughout"
@@ -107,7 +111,16 @@ class ObservationSpec(Record):
         data = handler(self)
         if data.get("temporal") == "throughout":
             data.pop("temporal")  # keep fingerprints of pre-existing contracts unchanged
+        if data.get("technical_relation") == "equals":
+            data.pop("technical_relation")
         return data
+
+    @field_validator("tolerance")
+    @classmethod
+    def finite_tolerance(cls, value):
+        if not math.isfinite(value):
+            raise ValueError("tolerance must be finite")
+        return int(value) if isinstance(value, float) and value.is_integer() else value
 
     @model_validator(mode="after")
     def consistent(self) -> ObservationSpec:
@@ -119,6 +132,10 @@ class ObservationSpec(Record):
             raise ValueError("continuity kind and comparator must agree")
         if self.kind == "technical" and self.technical_metric is None:
             raise ValueError("technical checks need a metric")
+        if self.technical_relation != "equals" and (
+            self.kind != "technical" or self.technical_metric == "has_audio"
+        ):
+            raise ValueError("directional relations require a numeric technical check")
         if self.comparator == "category_equals" and not self.vocabulary:
             raise ValueError("category comparison needs a closed vocabulary")
         return self

@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import random
 import threading
 import time
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 from ..interfaces import Budget, BudgetExhausted
 
@@ -214,9 +216,20 @@ class MetaObserver:
             if refusal:
                 return self._finish(trace, "refused", usage, cost, "model refusal", remote)
             try:
-                parsed = json.loads(text)
-            except ValueError:
-                return self._finish(trace, "invalid_output", usage, cost, f"non-JSON output: {text[:200]!r}", remote)
+                def invalid_constant(value):
+                    raise ValueError("non-finite JSON number")
+                def finite_float(value):
+                    number = float(value)
+                    if not math.isfinite(number):
+                        raise ValueError("non-finite JSON number")
+                    return number
+                parsed = json.loads(text, parse_constant=invalid_constant, parse_float=finite_float)
+                if not isinstance(parsed, dict):
+                    raise ValueError("observation output must be an object")
+                Draft202012Validator(schema).validate(parsed)
+            except (ValueError, ValidationError, SchemaError):
+                return self._finish(trace, "invalid_output", usage, cost,
+                                    "output does not satisfy the requested JSON object schema", remote)
             trace["raw_output"] = parsed
             return self._finish(trace, "ok", usage, cost, None, remote, parsed)
         self.budget.settle(res_id, cost_usd=0.0, cost_basis="no_response(connection_error)", usage=None,

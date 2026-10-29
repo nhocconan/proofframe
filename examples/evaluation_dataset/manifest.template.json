@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "baselines": ["opus-workflow", "proofframe"],
+  "cases": [
+    {
+      "case_id": "replace-with-owned-case",
+      "source_group": "replace-with-source-episode",
+      "split": "holdout",
+      "media_path": "media/replace-with-owned-clip.mp4",
+      "media_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "target_asset_id": "delivery",
+      "contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "annotation_provenance": "agent_draft",
+      "labels": {
+        "path": "labels/replace-with-adjudicated-labels.json",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "reports": {
+        "opus-workflow": {
+          "path": "reports/replace-with-opus-report.json",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "proofframe": {
+          "path": "reports/replace-with-proofframe-report.json",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      }
+    }
+  ]
+}

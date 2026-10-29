@@ -17,6 +17,7 @@ type Item = {
   why?: string; modelNote?: string; limitations?: string[]; question?: string; regression?: Check["regression"];
   check: ScanCheck; ref?: Interval | null; aDesc?: string; bDesc?: string;
   entity?: string; pairs?: Item[];
+  scanEvidence?: Evidence[];
 };
 
 const tokens = (e?: string) => new Set((e ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ")
@@ -118,16 +119,18 @@ function assertionItem(c: ScanCheck, env: Envelope): Item {
   const tech = (c.limitations ?? []).some((l) => l.includes("ffprobe"));
   return {
     key: c.assertion_id, testId: `check-${c.assertion_id}`, tone: toneOfStatus(c.status, c.blocking),
-    title: clean(c.predicate) || c.assertion_id, kindLabel: tech ? "File check" : c.status === "NOT_CHECKED" ? "Not checked" : "Requirement",
+    title: clean(c.predicate) || c.assertion_id, kindLabel: c.technical_measurement ? "Decoded media check" : tech ? "File check" : c.status === "NOT_CHECKED" ? "Not checked" : "Requirement",
     time: tech ? null : intervalOf(c, env), expected: c.expected, seen: c.observed,
     evidenceIds: c.evidence_ids, why: c.rationale, limitations: c.limitations, question: c.observation_question,
     regression: c.regression, check: c,
+    scanEvidence: env.evidence.filter((e) => c.evidence_ids.includes(e.evidence_id) && e.kind === "scan"),
   };
 }
 
 function plainWhy(i: Item, nFrames: number): string {
   const c = i.check;
   if (c.findings !== undefined) return "";
+  if (c.technical_measurement) return c.rationale;
   if (i.kindLabel === "File check") return c.status === "PASS" ? "File metadata matches the requirement." : `File metadata: ${c.rationale}`;
   const seen = i.seen ?? "nothing readable";
   switch (c.status) {
@@ -322,6 +325,9 @@ function Group({ title, tone, items, empty, sel, open, setOpen, pick, frames, se
             </button>
             <button className="more" onClick={() => setOpen((o) => ({ ...o, [i.key]: !isOpen }))}>{isOpen ? "Hide details" : "Why? Show evidence"}</button>
             {isOpen && <div className="detail">
+              {i.scanEvidence?.map((e) => <p key={e.evidence_id}>
+                <a href={`/media/${e.sha256}`} target="_blank" rel="noreferrer">Open decoded scan measurements (JSON)</a>
+              </p>)}
               {fr.length > 0 && <div className="strip">{fr.map((e) => (
                 <button key={e.evidence_id} onClick={() => seek(e.start_ms)} title={e.label}>
                   <img src={`/media/${e.sha256}`} alt={e.label ?? ""} /><span>{sec(e.start_ms)}</span></button>))}</div>}

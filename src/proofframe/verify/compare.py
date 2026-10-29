@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 
 # Typographic variants a reader cannot distinguish reliably; letters/diacritics/case stay exact.
 _DASHES = dict.fromkeys(map(ord, "‐‑‒–—―−"), "-")
@@ -84,7 +86,32 @@ def decide(comparator: str, expected: str, frames: list[FrameReading], *, min_it
     return Verdict("UNCERTAIN", observed, tuple(f.evidence_id for f in partial), summary + f" {why}.")
 
 
-def technical(metric: str, expected: str, tolerance: int, probe: dict) -> tuple[str, str, str]:
+def numeric_status(actual: int | float, expected: str, tolerance: int | float,
+                   relation: str = "equals", resolution: float = 0) -> str:
+    """Compare a measurement interval against an approved numeric requirement."""
+    try:
+        value, target, margin, step = map(Decimal, map(str, (actual, expected, tolerance, resolution)))
+    except InvalidOperation as exc:
+        raise ValueError("technical values must be finite numbers") from exc
+    if not all(n.is_finite() for n in (value, target, margin, step)) or margin < 0 or step < 0:
+        raise ValueError("technical values must be finite; tolerance/resolution must be nonnegative")
+    if any(abs(n.as_tuple().exponent) > 1000 or len(n.as_tuple().digits) > 1000
+           for n in (value, target, margin, step)):
+        raise ValueError("technical numeric precision exceeds supported bounds")
+    value, target, margin, step = map(Fraction, (value, target, margin, step))
+    lo, hi = value - step / 2, value + step / 2
+    lower, upper = target - margin, target + margin
+    if relation == "at_most":
+        return "PASS" if hi <= upper else "FAIL" if lo > upper else "UNCERTAIN"
+    if relation == "at_least":
+        return "PASS" if lo >= lower else "FAIL" if hi < lower else "UNCERTAIN"
+    if relation != "equals":
+        raise ValueError("unknown technical relation")
+    return "PASS" if lo >= lower and hi <= upper else "FAIL" if hi < lower or lo > upper else "UNCERTAIN"
+
+
+def technical(metric: str, expected: str, tolerance: int | float, probe: dict,
+              relation: str = "equals") -> tuple[str, str, str]:
     """Returns (status, observed, rationale) for an ffprobe-based check."""
     actual = probe.get(metric)
     if actual is None:
@@ -92,8 +119,8 @@ def technical(metric: str, expected: str, tolerance: int, probe: dict) -> tuple[
     if metric == "has_audio":
         ok = str(bool(actual)).lower() == expected.strip().lower()
         return ("PASS" if ok else "FAIL"), str(bool(actual)).lower(), f"ffprobe audio stream present={actual}"
-    ok = abs(int(actual) - int(expected)) <= tolerance
-    return ("PASS" if ok else "FAIL"), str(actual), f"ffprobe {metric}={actual}, expected {expected}±{tolerance}"
+    status = numeric_status(actual, expected, tolerance, relation)
+    return status, str(actual), f"ffprobe {metric}={actual}, {relation} {expected}±{tolerance}"
 
 
 REGRESSION_CLASSES = ("FIXED", "STILL_FAILING", "REGRESSION", "UNCERTAIN", "NOT_COMPARABLE", "UNCHANGED_PASS")

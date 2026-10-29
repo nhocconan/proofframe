@@ -76,3 +76,11 @@ Execution status (`Run.status`) ≠ check status ≠ release decision. A `succee
 UI rules: show decision AND coverage; unresolved mandatory checks are visible; clicking a check seeks the
 target video to `focus.start_ms` (fallback first evidence `start_ms`) and shows evidence frames, expected vs
 observed, limitations; run_mode label is always visible; regression classification shown separately.
+
+Decoded technical assertions add `black_duration_ms`, `freeze_duration_ms` and `silence_duration_ms` to `ObservationSpec.technical_metric` (kind/comparator remain `technical`). `expected` and `tolerance` compare union duration in milliseconds. Existing serialized defaults and contract fingerprints are unchanged.
+
+Their check rows include `technical_measurement` with `value`, source `intervals`, checked `coverage`, `settings`, `detector_version` and `limitations`. Evidence kind `scan` points to the JSON artifact; `inspection=exhaustive` covers only the decoded metric's checked interval, not exhaustive semantic video understanding. Incomplete decoded scope is UNCERTAIN; missing streams or operational failures are ERROR. Technical-only runs need no observer and have zero provider traces/cost. See the runbook for resource bounds and scope behavior.
+
+Audio metering adds `integrated_loudness_lufs` and `true_peak_dbtp` for video-with-audio and audio-only slots. `technical_relation` is `equals` (omitted by default), `at_most` or `at_least`. `tolerance` accepts finite fractional values; integral floats still serialize as integers to preserve legacy fingerprints. Directional relations apply only to numeric technical metrics. Numeric comparisons use exact decimal-derived fractions; unsupported precision is an error rather than an approximate PASS.
+
+Audio `technical_measurement` additionally records `units` and `numeric_resolution` (0.1 from the printed summary); it need not contain event `intervals`. The complete measurement scope is the focus: a whole-scope peak is not a precisely localized transient. Boundary-straddling values and unmeasurable gated/silent audio remain UNCERTAIN. First-stream scope, meter settings and limitations accompany the evidence. No normalization or source-audio repair occurs. The CLI accepts `--audio slot=/path.wav` alongside `--video` through the same asset/job endpoints.

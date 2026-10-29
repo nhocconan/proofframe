@@ -85,6 +85,28 @@
           "default": false,
           "title": "Global Sentinel",
           "type": "boolean"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeScope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservationSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -196,6 +218,138 @@
         }
       },
       "title": "Coverage",
+      "type": "object"
+    },
+    "ObservationSpec": {
+      "additionalProperties": false,
+      "description": "How to observe an assertion WITHOUT revealing the expected value.\n\nThe observer only receives `subject`, `attribute` and `vocabulary`; `expected`\nstays in deterministic comparison code. `technical` checks never call a model.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "visual_attribute",
+            "on_screen_text",
+            "technical",
+            "generation_artifact_scan",
+            "cross_shot_continuity"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "subject": {
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        },
+        "attribute": {
+          "minLength": 1,
+          "title": "Attribute",
+          "type": "string"
+        },
+        "comparator": {
+          "enum": [
+            "category_equals",
+            "exact_text_nfc",
+            "technical",
+            "anomaly_scan",
+            "continuity_audit"
+          ],
+          "title": "Comparator",
+          "type": "string"
+        },
+        "vocabulary": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Vocabulary",
+          "type": "array"
+        },
+        "technical_metric": {
+          "anyOf": [
+            {
+              "enum": [
+                "duration_ms",
+                "has_audio",
+                "width",
+                "height",
+                "black_duration_ms",
+                "freeze_duration_ms",
+                "silence_duration_ms",
+                "integrated_loudness_lufs",
+                "true_peak_dbtp"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Technical Metric"
+        },
+        "tolerance": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0,
+          "ge": 0,
+          "title": "Tolerance"
+        },
+        "technical_relation": {
+          "default": "equals",
+          "enum": [
+            "equals",
+            "at_most",
+            "at_least"
+          ],
+          "title": "Technical Relation",
+          "type": "string"
+        },
+        "temporal": {
+          "default": "throughout",
+          "enum": [
+            "throughout",
+            "occurs"
+          ],
+          "title": "Temporal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "subject",
+        "attribute",
+        "comparator"
+      ],
+      "title": "ObservationSpec",
+      "type": "object"
+    },
+    "TimeScope": {
+      "additionalProperties": false,
+      "description": "Approved source-time window where the requirement applies (asset-local ms).",
+      "properties": {
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_ms",
+        "end_ms"
+      ],
+      "title": "TimeScope",
       "type": "object"
     }
   },

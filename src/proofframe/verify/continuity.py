@@ -127,10 +127,14 @@ def batches(keys: list[Keyframe]) -> list[list[Keyframe]]:
     return out
 
 
-def finding_status(kind: str, verdict: str, severity: str) -> str:
+def finding_status(kind: str, verdict: str, severity: str, same_entity: str = "unclear") -> str:
     """Map an adjudicated suspicion to a finding verdict used by anomaly.decide_scan."""
-    if verdict == "confirmed" and kind == "identity":
-        return "review"  # identity drift: human decision, never auto-FAIL
+    if verdict not in {"confirmed", "rejected", "unclear"} or severity not in SEVERITIES:
+        return "unclear"
+    if same_entity not in {"yes", "no"}:
+        return "review"
+    if verdict == "confirmed" and (kind == "identity" or same_entity != "yes"):
+        return "review"
     return verdict
 
 

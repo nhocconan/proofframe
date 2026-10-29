@@ -22,9 +22,9 @@ from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
 from . import anomaly, continuity
-from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, technical
+from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, numeric_status, technical
 
-EVALUATOR_VERSION = "pf-verify-0.13(meta-video-localize+frame-confirm+artifact-scan)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+EVALUATOR_VERSION = "pf-verify-0.15(audio-metering+numeric-limits)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
 # 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
 # 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared; 0.8: cross-shot continuity audit; 0.9: pairwise + swapped-order adjudication; 0.10: intrinsic long-range checks, insert bridging; 0.11: adjudicate up to 24 suspicions; 0.12: assertions evaluated concurrently; 0.13: pre-run budget plan, partial results on a budget stop
 VIDEO_FPS = 1.0
@@ -140,19 +140,20 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
         path = store.path_for(a.sha256)
         if media.sha256_file(path) != a.sha256:
             raise RuntimeError(f"stored bytes for {a.asset_id} do not match sha256 {a.sha256}")
-        if a.media_type == "video":
+        if a.media_type in {"video", "audio"}:
             probes[a.asset_id] = media.probe(path)
         dur = probes[a.asset_id].duration_ms if a.asset_id in probes else None
         bindings.append(AssetBinding(asset_id=a.asset_id, revision=a.revision, sha256=a.sha256,
                                      media_type=a.media_type, duration_ms=dur))
 
-    if observer is None:
+    selected = [c for c in contract.assertions if assertion_ids is None or c.assertion_id in assertion_ids]
+    needs_observer = any(c.observation is not None and c.observation.kind != "technical" for c in selected)
+    if observer is None and needs_observer:
         from ..providers.meta import MetaObserver
         observer = MetaObserver(api_key=os.environ["META_DEV_API"], budget=budget, run_id=run_id,
                                 base_url=os.environ.get("META_BASE_URL", "https://api.meta.ai/v1"))
 
     # 2. mandatory coverage ledger BEFORE any detection: every assertion gets a row.
-    selected = [c for c in contract.assertions if assertion_ids is None or c.assertion_id in assertion_ids]
     evidence: list[Evidence] = []
     ev_display: list[dict] = []
     artifacts: list[dict] = []
@@ -215,8 +216,63 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
             if obs.kind == "technical":
                 pr = probes.get(target.asset_id)
                 path = store.path_for(target.sha256)
+                audio_metric = obs.technical_metric in {"integrated_loudness_lufs", "true_peak_dbtp"}
+                if audio_metric or obs.technical_metric in {"black_duration_ms", "freeze_duration_ms", "silence_duration_ms"}:
+                    from .technical import scan
+                    if pr is None:
+                        raise ValueError("decoded technical QC requires an audio or video asset")
+                    lo = check.scope.start_ms if check.scope else 0
+                    hi = check.scope.end_ms if check.scope else pr.duration_ms
+                    if hi > pr.duration_ms:
+                        raise ValueError("approved QC scope extends beyond media duration")
+                    if audio_metric:
+                        from .audio import UnmeasurableAudio, measure
+                        try:
+                            measurement = measure(path, start_ms=lo, end_ms=hi, metric=obs.technical_metric)
+                        except UnmeasurableAudio as exc:
+                            row["rationale"] = f"UNCERTAIN: {exc}"
+                            results[check.assertion_id] = CheckResult(
+                                assertion_id=check.assertion_id, status=Status.UNCERTAIN,
+                                rationale=row["rationale"], evaluator_version=EVALUATOR_VERSION)
+                            return
+                    else:
+                        measurement = scan(path, start_ms=lo, end_ms=hi, metric=obs.technical_metric)
+                    checked = measurement["coverage"]
+                    complete = checked["start_ms"] <= lo and checked["end_ms"] >= hi
+                    actual = measurement["value"]
+                    if not audio_metric and int(check.expected) < 0:
+                        raise ValueError("expected duration must be nonnegative")
+                    status = numeric_status(actual, check.expected, obs.tolerance, obs.technical_relation,
+                                            measurement.get("numeric_resolution", 0))
+                    if not complete:
+                        status = "UNCERTAIN"
+                    units = measurement.get("units", "ms")
+                    why = (f"Decoded {obs.technical_metric}={actual} {units}; "
+                           f"{obs.technical_relation} {check.expected}±{obs.tolerance} {units}")
+                    if not complete:
+                        why += "; decoded coverage does not cover the entire approved scope"
+                    mpath = work / f"{check.assertion_id}-decoded-qc.json"
+                    mpath.write_text(json.dumps(measurement, sort_keys=True), encoding="utf-8")
+                    msha = store.put_file(mpath, media_type="application/json")
+                    ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
+                                  artifact_sha256=msha, kind="scan", inspection="exhaustive",
+                                  uri=f"/v1/media/{msha}", extractor_version=measurement["detector_version"],
+                                  trace_id=f"tr-qc-{check.assertion_id}",
+                                  start_ms=checked["start_ms"], end_ms=checked["end_ms"])
+                    add_evidence(ev, role="target", label=f"decoded {obs.technical_metric}",
+                                 media_type="application/json")
+                    intervals = measurement.get("intervals", [])
+                    row.update(observed=f"{actual} {units}" if audio_metric else str(actual),
+                               evidence_ids=[ev.evidence_id], rationale=why,
+                               technical_measurement=measurement,
+                               focus=intervals[0] if intervals else {"start_ms": lo, "end_ms": hi},
+                               limitations=measurement["limitations"])
+                    results[check.assertion_id] = CheckResult(
+                        assertion_id=check.assertion_id, status=Status(status), evidence_ids=(ev.evidence_id,),
+                        rationale=why, evaluator_version=EVALUATOR_VERSION)
+                    return
                 status, observed, why = technical(obs.technical_metric, check.expected, obs.tolerance,
-                                                  pr.as_dict() if pr else {})
+                                                  pr.as_dict() if pr else {}, obs.technical_relation)
                 meta = json.dumps(pr.as_dict() if pr else {}, sort_keys=True).encode()
                 mpath = work / f"{check.assertion_id}-ffprobe.json"
                 mpath.write_bytes(meta)
@@ -385,7 +441,8 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
     counts = {k: 0 for k in ("pass", "fail", "uncertain", "not_checked", "error", "not_applicable")}
     for r in results.values():
         counts[r.status.value.lower()] += 1
-    labels = {"live": "LIVE RUN — real Meta API calls on real media",
+    labels = {"live": ("LIVE RUN — real Meta API calls on real media" if needs_observer else
+                       "LIVE RUN — deterministic media checks; no model calls"),
               "recorded_replay": "RECORDED REPLAY — not a live run",
               "synthetic_fixture": "SYNTHETIC FIXTURE — not evidence of video understanding"}
     envelope = {
@@ -683,7 +740,9 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
                          "category": sp["kind"], "entity": sp["entity"],
                          "severity": v.get("severity", sp["severity"]),
                          "verdict": continuity.finding_status(sp["kind"], v.get("verdict", "unclear"),
-                                                              v.get("severity", sp["severity"])),
+                                                              v.get("severity", sp["severity"]),
+                                                              v.get("same_entity", "unclear")),
+                         "same_entity": v.get("same_entity", "unclear"),
                          "description": f"{sp['entity']}: {sp['description']}", "sources": sorted(sp["sources"]),
                          # adjudication saw the later shot first: map its descriptions back to A/B
                          "shot_a_description": v.get("shot_b_description", ""),

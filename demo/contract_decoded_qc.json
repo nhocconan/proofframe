@@ -1,0 +1,46 @@
+{
+  "contract_id": "decoded-qc-demo",
+  "revision": 1,
+  "tenant_id": "demo-tenant",
+  "profile": "film",
+  "profile_revision": "decoded-qc-v1",
+  "assets": [{"asset_id": "delivery", "media_type": "video"}],
+  "assertions": [
+    {
+      "assertion_id": "no-black",
+      "source_pointer": "/delivery/technical/no_black",
+      "target_asset_id": "delivery",
+      "predicate": "Black intervals total at most 100 ms",
+      "expected": "0",
+      "global_sentinel": true,
+      "observation": {
+        "kind": "technical", "subject": "delivery", "attribute": "black intervals",
+        "comparator": "technical", "technical_metric": "black_duration_ms", "tolerance": 100
+      }
+    },
+    {
+      "assertion_id": "no-freeze",
+      "source_pointer": "/delivery/technical/no_freeze",
+      "target_asset_id": "delivery",
+      "predicate": "Frozen intervals total at most 500 ms",
+      "expected": "0",
+      "global_sentinel": true,
+      "observation": {
+        "kind": "technical", "subject": "delivery", "attribute": "frozen intervals",
+        "comparator": "technical", "technical_metric": "freeze_duration_ms", "tolerance": 500
+      }
+    },
+    {
+      "assertion_id": "no-silence",
+      "source_pointer": "/delivery/technical/no_silence",
+      "target_asset_id": "delivery",
+      "predicate": "Silent intervals total at most 200 ms",
+      "expected": "0",
+      "global_sentinel": true,
+      "observation": {
+        "kind": "technical", "subject": "delivery", "attribute": "silent intervals",
+        "comparator": "technical", "technical_metric": "silence_duration_ms", "tolerance": 200
+      }
+    }
+  ]
+}

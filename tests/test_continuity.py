@@ -34,7 +34,21 @@ def test_batches_overlap_and_cover():
 
 def test_identity_never_auto_fails():
     assert continuity.finding_status("identity", "confirmed", "critical") == "review"
-    assert continuity.finding_status("prop_scale", "confirmed", "major") == "confirmed"
+    assert continuity.finding_status("prop_scale", "confirmed", "major", "yes") == "confirmed"
+
+
+@pytest.mark.parametrize("correspondence", ["no", "unclear"])
+def test_uncertain_entity_match_cannot_confirm(correspondence):
+    assert continuity.finding_status("prop_scale", "confirmed", "major", correspondence) == "review"
+
+
+def test_rejected_suspicion_with_unresolved_entity_cannot_clear():
+    assert continuity.finding_status("prop_scale", "rejected", "major", "unclear") == "review"
+
+
+@pytest.mark.parametrize("verdict,severity", [("bogus", "major"), ("confirmed", "bogus")])
+def test_invalid_judgment_never_confirms_or_clears(verdict, severity):
+    assert continuity.finding_status("prop_scale", verdict, severity, "yes") == "unclear"
 
 
 def _three_shot_clip(path):
@@ -55,8 +69,9 @@ def test_detect_shots_finds_hard_cuts(tmp_path):
 class LogFake:
     model = "fake-observer"
 
-    def __init__(self, verdict, kind="prop_scale"):
+    def __init__(self, verdict, kind="prop_scale", same_entity="yes"):
         self.verdict, self.kind, self.traces = verdict, kind, []
+        self.same_entity = same_entity
 
     def observe_images(self, *, images, purpose, **_):
         from proofframe.providers.meta import CallResult
@@ -70,7 +85,7 @@ class LogFake:
             parsed = {"same_scene": "yes", "people_a": "", "people_b": "", "discrepancies": [
                 {"entity": "red radio", "kind": self.kind, "description": "much smaller", "severity": "major"}]}
         else:
-            parsed = {"shot_a_description": "big", "shot_b_description": "small", "same_entity": "yes",
+            parsed = {"shot_a_description": "big", "shot_b_description": "small", "same_entity": self.same_entity,
                       "verdict": self.verdict, "severity": "major", "innocent_explanation_considered": "x",
                       "explanation": "y"}
         t = {"trace_id": f"tr-{uuid.uuid4().hex[:8]}", "purpose": purpose, "outcome": "ok", "cost_usd": 0.0}
@@ -79,9 +94,12 @@ class LogFake:
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="needs ffmpeg")
-@pytest.mark.parametrize("verdict,kind,status", [("confirmed", "prop_scale", "FAIL"), ("rejected", "prop_scale", "PASS"),
-                                                  ("confirmed", "identity", "UNCERTAIN")])
-def test_continuity_pipeline(tmp_path, verdict, kind, status):
+@pytest.mark.parametrize("verdict,kind,correspondence,status", [
+    ("confirmed", "prop_scale", "yes", "FAIL"), ("rejected", "prop_scale", "yes", "PASS"),
+    ("confirmed", "identity", "yes", "UNCERTAIN"), ("confirmed", "prop_scale", "unclear", "UNCERTAIN"),
+    ("confirmed", "prop_scale", "no", "UNCERTAIN"),
+    ("rejected", "prop_scale", "unclear", "UNCERTAIN")])
+def test_continuity_pipeline(tmp_path, verdict, kind, correspondence, status):
     clip = tmp_path / "c.mp4"
     _three_shot_clip(clip)
     store = DirStore(tmp_path)
@@ -97,7 +115,7 @@ def test_continuity_pipeline(tmp_path, verdict, kind, status):
                                                 "attribute": "continuity", "comparator": "continuity_audit"}}]}
     env = run_verification(run_id="c", run_mode="synthetic_fixture", contract_json=contract,
                            assets=[AssetInput("v", 1, sha, "video")], store=store, budget=CapBudget(1),
-                           observer=LogFake(verdict, kind)).envelope
+                           observer=LogFake(verdict, kind, correspondence)).envelope
     c = env["checks"][0]
     assert c["status"] == status and len(c["shots"]) == 3
     f = c["findings"][0]

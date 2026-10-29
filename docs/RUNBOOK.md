@@ -66,8 +66,58 @@ Max 2 attempts per target along a run chain (3rd → HTTP 409, escalate to human
 
 ## Tests
 
+### Decoded technical QC
+
+`demo/contract_decoded_qc.json` is a template, not approved production intent. Review its thresholds and scopes before submitting it: intentional black, static holds and silence are legitimate in many films. Assertions compare the measured union duration with `expected` ± `tolerance`, in milliseconds. Use separate scoped assertions for approved portions rather than silently exempting findings after a run.
+
 ```bash
-docker compose run --rm api python -m pytest -q -p no:cacheprovider        # 99 tests (no paid calls)
+docker compose exec -e PROOFFRAME_API_URL=http://localhost:8080 api proofframe verify --contract demo/contract_decoded_qc.json --video delivery=/media/owned-delivery.mp4 --wait
+```
+
+The shared verifier decodes the selected first stream with FFmpeg; no model credential or paid call is needed for technical-only checks. `black_duration_ms`, `freeze_duration_ms` and `silence_duration_ms` produce source-bound JSON scan artifacts, checked intervals, settings and detector version. In the UI open the check's details to download measurements or seek to its first flagged interval. The CLI uses the same report.
+
+Current bounds: 300 s per scan scope, visual frame size at most 3840×2160, 300 s subprocess timeout. Default detectors exclude black events shorter than 100 ms, freezes shorter than 500 ms and silence shorter than 200 ms; thresholds are recorded in evidence. Missing required audio, decode failures and invalid scopes produce ERROR. Non-frame-aligned scopes may begin at the next decoded frame: incomplete coverage is UNCERTAIN and cannot PASS. These heuristics do not qualify speech intelligibility, lip-sync, artistic quality or perception accuracy.
+
+### Audio delivery measurements
+
+`demo/contract_audio_qc.json` is a draft for an audio-only slot. It illustrates −23 LUFS ±0.2 LU and a maximum −1 dBTP. Approve the delivery targets before use; these values are not universal streaming settings or a certification claim. The same observations work on video slots with an audio stream.
+
+```bash
+docker compose exec -e PROOFFRAME_API_URL=http://localhost:8080 api proofframe verify --contract demo/contract_audio_qc.json --audio master-audio=/media/owned-master.wav --wait
+```
+
+`integrated_loudness_lufs` and `true_peak_dbtp` use FFmpeg metering without changing source audio. `technical_relation` is `equals` (default), `at_most` or `at_least`; tolerance accepts finite fractional values. The first audio stream is measured for at most 300 s per scope. A 0.1-unit summary has a ±0.05 rounding interval: a measurement straddling an approved boundary is UNCERTAIN. This accounts for printed precision, not calibrated instrument accuracy. Unmeasurable silence/sub-gated loudness is UNCERTAIN; absent audio or failed decoding is ERROR.
+
+Whole-programme loudness requires a whole-programme scope. Do not average LUFS from separate shots to claim programme compliance. Longer inputs require an explicitly supported full-duration implementation; these bounds do not silently split and average. Peak/loudness measurements do not prove intelligible dialogue or synchronized lips.
+
+### Offline evaluation and judge controls
+
+```bash
+python scripts/score_findings.py report.json labels.json --json --controls controls.json
+```
+
+Install the project's dependencies first or run this in the app environment. Labels contain `defects` with `id`, `class`, `t` in seconds, `accept_categories` and optional `keywords`. Each distinct claim can match at most one label; reference-shot context does not locate a defect. Confirmed detections and surfaced review items have separate results. Repeated claims merge only with matching category/entity, overlapping intervals and an explicit shared `root_cause_id` or identical normalized description.
+
+Precision is unknown while unmatched claims lack adjudication. An owner-confirmed complete annotation set can explicitly set `fully_annotated: true`; otherwise provide `adjudications` keyed by finding `id` or `assertion_id:zero_based_index`, with `false_positive`, `true_positive` or `uncertain`. Human decisions constrain matching. A true-positive label gap adds a precision positive, not a supplied-label recall hit. Conflicting duplicate decisions remain unresolved.
+
+Controls JSON has `order_records` (`pair_id`, `order`: `AB`/`BA`, `verdict`: `same`/`different`/`abstain`/`error`) and `identical_records` (`pair_id`, `verdict`). Pair IDs must bind identical evidence, prompt, model and settings except ordering; the tool analyzes records without making calls. Reported rates keep abstention/error counts and decisive denominators. Machine-readable results include input hashes and evaluator version. These diagnostics do not create a holdout or establish superiority over Opus.
+
+### Frozen-cohort baseline comparison
+
+```bash
+python scripts/evaluate_dataset.py private/my-evaluation/manifest.json --split holdout --json
+```
+
+Copy `examples/evaluation_dataset/manifest.template.json` to an ignored evaluation directory and replace every placeholder with real local files and hashes. The template is intentionally incomplete and cannot produce a valid evaluation. Paths resolve relative to the manifest directory and cannot escape it; keep private footage and derived artifacts outside Git.
+
+Each case binds one target asset, exact media bytes, contract, labels and a complete set of baseline reports. Reports use the ProofFrame envelope shape and must contain checks for that case's target. All cases are validated before filtering a split. Episode/source groups and identical media hashes cannot cross development/calibration/holdout boundaries. Byte-bound snapshots do not prove that a holdout was locked before earlier tuning; preserve that history separately.
+
+For multiple baselines, label files use `adjudications_by_baseline: {"opus-workflow": {"check:0": "false_positive"}, "proofframe": {"check:0": "true_positive"}}`. Each map refers only to that baseline's finding IDs. A shared nonempty `adjudications` map is rejected across multiple baselines. Missing or conflicting decisions remain unresolved. Annotation provenance is declared as human-adjudicated, agent-draft or synthetic; a manifest string alone does not prove human review.
+
+Output separates per-case and aggregate confirmed/surfaced metrics, includes manifest/report/label/media hashes and counts source groups. Missing costs, unknown-cost calls and unmeasured owner review remain unknown. Reported estimates do not establish complete generation/repair/review costs. The tool makes no provider calls or qualification verdict; compare identical evidence for model selection and separately measure full systems before claiming savings.
+
+```bash
+docker compose run --rm api python -m pytest -q -p no:cacheprovider        # no paid calls
 # UI seek check (Firefox/WebKit; Playwright's Chromium lacks H.264):
 docker run --rm --network host -e BROWSER=firefox -v "$PWD/e2e":/e2e:ro -v "$PWD/validation/screenshots":/out \
   mcr.microsoft.com/playwright:v1.49.1-jammy sh -c 'cd /tmp && npm i -s playwright@1.49.1 >/dev/null 2>&1 && \
