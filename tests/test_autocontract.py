@@ -92,3 +92,10 @@ def test_long_auto_contract_chunks_decoded_qc_advisories():
     metrics = {item.observation.technical_metric for item in advisories}
     assert {"black_duration_ms", "freeze_duration_ms", "silence_duration_ms",
             "integrated_loudness_lufs", "true_peak_dbtp"} <= metrics
+
+
+def test_no_audio_clip_gets_no_audio_qc_assertions():
+    contract = Contract.model_validate(build_auto_contract(
+        "v", {"sha256": "d" * 64, "duration_ms": 5_000, "has_audio": False}, "demo-tenant"))
+    metrics = {item.observation.technical_metric for item in contract.assertions if item.observation.technical_metric}
+    assert metrics == {"black_duration_ms", "freeze_duration_ms"}

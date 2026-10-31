@@ -146,10 +146,11 @@ def evaluate(*, check, target, reference, pr, src: Path, ref_src: Path, observer
     ev_by_label: dict[str, Evidence] = {}
     for lab, t, p in frames:
         sha = put(p)
+        f0, f1 = media.frame_interval(src, t, pr.duration_ms, FRAME_SPAN_MS)
         ev = Evidence(evidence_id=f"ev-{uuid.uuid4().hex[:12]}", asset_id=target.asset_id,
                       asset_sha256=target.sha256, artifact_sha256=sha, kind="frame", inspection="sampled",
                       uri=f"/v1/media/{sha}", extractor_version=media.EXTRACTOR_VERSION, trace_id=trace_id,
-                      start_ms=t, end_ms=min(t + FRAME_SPAN_MS, pr.duration_ms))
+                      start_ms=f0, end_ms=f1)
         add_evidence(ev, role="target", label=f"{lab} @ {t / 1000:.2f}s", media_type="image/png")
         ev_by_label[lab] = ev
     all_ids = [ref_ev.evidence_id] + [ev_by_label[lab].evidence_id for lab, _, _ in frames]

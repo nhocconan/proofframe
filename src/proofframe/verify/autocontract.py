@@ -90,10 +90,13 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str,
     qc = (
         ("qc-black", "black_duration_ms", "3000", "at_most", "black intervals"),
         ("qc-freeze", "freeze_duration_ms", "10000", "at_most", "frozen intervals"),
-        ("qc-silence", "silence_duration_ms", "30000", "at_most", "silent intervals"),
     )
+    # Audio QC needs an audio stream: without one the detectors can only ERROR ("audio stream required").
+    # A missing track is not a defect this advisory can measure, so those assertions are not created
+    # (absent audio is surfaced by the probe metadata, never as a PASS).
     if probe.get("has_audio"):
         qc += (
+            ("qc-silence", "silence_duration_ms", "30000", "at_most", "silent intervals"),
             ("qc-loudness", "integrated_loudness_lufs", "-30", "at_least", "integrated loudness"),
             ("qc-true-peak", "true_peak_dbtp", "0", "at_most", "true peak"),
         )
