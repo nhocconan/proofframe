@@ -1,6 +1,8 @@
 """Deterministic, content-agnostic contracts for scans without an approved brief."""
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from proofframe_contracts.models import Contract
@@ -129,8 +131,11 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str,
                 row["scope"] = {"start_ms": scope[0], "end_ms": scope[1]}
             assertions.append(row)
 
+    # The id carries a digest of the generated checks: when this template changes, a clip scanned before gets a new
+    # contract id instead of a 409 "contract_id+revision already exists with different content".
+    template = hashlib.sha256(json.dumps(assertions, sort_keys=True).encode()).hexdigest()[:8]
     contract = Contract.model_validate({
-        "contract_id": f"auto-{identity}",
+        "contract_id": f"auto-{identity}-t{template}",
         "revision": 1,
         "tenant_id": tenant,
         "profile": "film",

@@ -98,3 +98,20 @@ def test_auto_contract_carries_the_exclusion_on_continuity_only():
     rows = {a["assertion_id"]: a for a in c["assertions"]}
     assert rows["continuity"]["approved_exclusion"] == SINGLE_SHOT_EXCLUSION
     assert rows["gen-artifacts"].get("approved_exclusion") is None
+
+
+def test_exclusion_does_not_hide_a_multi_shot_defect(tmp_path):
+    """The single-shot exclusion only applies when there is one shot; a confirmed cross-shot error still surfaces."""
+    from proofframe.verify.autocontract import SINGLE_SHOT_EXCLUSION
+    clip = tmp_path / "three.mp4"
+    _three_shot_clip(clip)
+    contract = {**CONTRACT, "assertions": [{**CONTRACT["assertions"][0], "blocking": True,
+                                            "approved_exclusion": SINGLE_SHOT_EXCLUSION}]}
+    store = DirStore(tmp_path)
+    sha = store.put_file(clip, media_type="video/mp4")
+    env = run_verification(run_id="c", run_mode="synthetic_fixture", contract_json=contract,
+                           assets=[AssetInput("v", 1, sha, "video")], store=store, budget=CapBudget(1),
+                           observer=LogFake("confirmed")).envelope
+    c = env["checks"][0]
+    assert c["status"] not in ("PASS", "NOT_APPLICABLE") and len(c["shots"]) == 3
+    assert env["decision"]["decision"] != "ELIGIBLE"

@@ -56,7 +56,7 @@ billed separately by ElevenLabs and never touches the Meta ledger.
 | 2026-10-31 | run-e973a89be30d4d4588ac | probe v2 wan3-prime-t2v (2.02 s) | video-only | ELIGIBLE | $0.0101 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
 | 2026-10-31 | run-99b1c576a49d4c76952c | probe v2 wan3-i2v (2.02 s) | video-only + reference | ELIGIBLE | $0.0218 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
 
-Probe v2 (after the short-clip grid, single-shot continuity and reference-match changes; i2v clips run with `--reference still.png`): 17 runs, $0.2829 summed from the reports, own fresh ledger capped at $2.50 project / $0.70 per run, plus one ≈ $0.010 format-check run of grok-lite-t2v not scored. Same-session totals for the probe stack: ≈ $0.53.
+Probe v2 (code at f5de35d; after the short-clip grid, single-shot continuity and reference-match changes; i2v clips run with `--reference still.png`): 17 runs, $0.2829 summed from the reports, own fresh ledger capped at $2.50 project / $0.70 per run, plus one ≈ $0.010 format-check run of grok-lite-t2v not scored. Same-session totals for the probe stack: ≈ $0.53.
 
 Budget after the probe-set runs: Meta settled ≈ $28.02 of the $140 cap (≈ $27.78 before + $0.24 for the 17 probe runs, summed from the reports; the probe stack used its own fresh ledger capped at $2.50, so the main ledger was not updated), reserved $0.
 

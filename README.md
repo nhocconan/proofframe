@@ -86,7 +86,7 @@ grid fix; (2) the continuity audit no longer reports PASS when it compared 0 sho
 `--video-only --reference still.png` sends the still plus first/middle/last frames and asks for new props, missing props
 and setting changes. Findings go to REVIEW, never FAIL (one model family). The scorer was changed before the run so a
 check that did not run (ERROR, NOT_CHECKED, 0 shot pairs) leaves the recall denominator instead of counting as a miss.
-Same manifest (sha256 `3df16b52…`), same `muse-spark-1.3`, per-run cap $0.70. **Cost: $0.2829 for 17 runs.**
+Same manifest (sha256 `3df16b52…`), same `muse-spark-1.3`, per-run cap $0.70, code at commit f5de35d. **Cost: $0.2829 for 17 runs.**
 Result in [`validation/runs/probe-2026-10-31-model-scan-v2.json`](validation/runs/probe-2026-10-31-model-scan-v2.json).
 
 | Label class | v1 caught / checked / labelled | v2 caught / checked / labelled | v2 false flags |

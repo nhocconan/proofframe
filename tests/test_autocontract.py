@@ -99,3 +99,13 @@ def test_no_audio_clip_gets_no_audio_qc_assertions():
         "v", {"sha256": "d" * 64, "duration_ms": 5_000, "has_audio": False}, "demo-tenant"))
     metrics = {item.observation.technical_metric for item in contract.assertions if item.observation.technical_metric}
     assert metrics == {"black_duration_ms", "freeze_duration_ms"}
+
+
+def test_auto_contract_id_changes_with_the_generated_checks():
+    """A clip scanned under an older template must not collide (409) with its old contract id."""
+    from proofframe.verify.autocontract import build_auto_contract
+    base = {"sha256": "b" * 64, "duration_ms": 4000}
+    a = build_auto_contract("v", {**base, "has_audio": False}, "t")["contract_id"]
+    b = build_auto_contract("v", {**base, "has_audio": True}, "t")["contract_id"]
+    assert a != b and a.startswith("auto-bbbbbbbbbbbb-t")
+    assert a == build_auto_contract("v", {**base, "has_audio": False}, "t")["contract_id"]
