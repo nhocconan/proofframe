@@ -1,13 +1,22 @@
-"""Score the model-based artifact scan + single-shot continuity pass on the probe set, one-to-one.
+"""Score the model-based artifact scan + continuity / reference-match checks on the probe set, one-to-one.
 
   python scripts/score_probe_model_scan.py REPORT_DIR [--manifest M] [--out validation/runs/X.json]
 
 REPORT_DIR holds one `proofframe verify --video-only --out` report per clip (the clip id is the media file name
 `<folder>-<file>` with non-alphanumerics turned into '-'). Labels are clip-level (whole picture span):
-artifact (fail|minor; 'disputed' is excluded), new_props, scene_changed. A gen-artifacts finding can match an
-artifact label; a continuity finding can match new_props / scene_changed. An ERROR check counts as an
-unscored clip, never as a pass. Labels are the reviewer's and in-sample; a finding on a clip with no matching
-label is 'unresolved' (precision unknown) unless the clip is i2v and fully annotated, which this set does not claim.
+artifact (fail|minor; 'disputed' is excluded), new_props, scene_changed.
+
+Class -> check mapping (strict):
+  artifact       <- gen-artifacts findings of any category. gen-artifacts `object` findings do NOT credit new_props.
+  new_props      <- continuity findings OR reference-match findings of category new_prop / missing_prop
+  scene_changed  <- continuity findings OR reference-match findings of category scene_changed
+A reference-match finding with verdict review counts as a flag (surfaced track).
+
+Per class the table is caught / checked / labelled. A label is `checked` only if a check that could raise that class
+finished PASS, FAIL or REVIEW. ERROR, NOT_CHECKED and a missing check (old reports without reference-match) are not checked,
+and neither is a continuity check that compared "0 shot pairs" (vacuous PASS in old reports). Not-checked labels are
+excluded from the recall denominator and listed separately under `not_checked`. Labels are the reviewer's and in-sample;
+a finding on a clip with no matching label is 'unresolved' (precision unknown).
 """
 from __future__ import annotations
 
@@ -23,8 +32,32 @@ sys.path.insert(0, str(ROOT / "src"))
 from proofframe import probe_manifest as pm  # noqa: E402
 from proofframe.evaluation import score_findings  # noqa: E402
 
-CHECK_FOR_CLASS = {"artifact": "gen-artifacts", "new_props": "continuity", "scene_changed": "continuity"}
-CATEGORY_FOR_CHECK = {"gen-artifacts": "artifact", "continuity": "continuity"}
+CHECKS_FOR_CLASS = {"artifact": ("gen-artifacts",), "new_props": ("continuity", "reference-match"),
+                    "scene_changed": ("continuity", "reference-match")}
+SCORED_CHECKS = ("gen-artifacts", "continuity", "reference-match")
+CHECKED_STATUSES = {"PASS", "FAIL", "REVIEW"}
+# scorer category for a finding; None = not scored. reference-match categories map by name, never to `artifact`.
+REFERENCE_CATEGORY = {"new_prop": "new_props", "missing_prop": "new_props", "scene_changed": "scene_changed"}
+ACCEPT = {"artifact": ["artifact"], "new_props": ["continuity", "new_props"], "scene_changed": ["continuity", "scene_changed"]}
+
+
+def check_finished(check: dict | None) -> bool:
+    """True only if the check ran to a PASS/FAIL/REVIEW result that actually examined something."""
+    if not check or check.get("status") not in CHECKED_STATUSES:
+        return False
+    if check.get("assertion_id") == "continuity":
+        text = " ".join(str(check.get(k) or "") for k in ("rationale", "observed")) + " " + " ".join(check.get("limitations") or [])
+        if re.search(r"\b0 shot pairs compared", text):
+            return False
+    return True
+
+
+def scored_category(check_id: str, finding: dict) -> str | None:
+    if check_id == "gen-artifacts":
+        return "artifact"
+    if check_id == "continuity":
+        return "continuity"
+    return REFERENCE_CATEGORY.get(finding.get("category"))
 
 
 def clip_key(clip: dict) -> str:
@@ -35,11 +68,11 @@ def clip_key(clip: dict) -> str:
 def labels_for(clip: dict, end_s: float) -> list[dict]:
     lab, out = clip["labels"], []
     if lab["artifact"] in ("fail", "minor"):
-        out.append({"id": "artifact", "class": "artifact", "t": [0, end_s], "accept_categories": ["artifact"]})
+        out.append({"id": "artifact", "class": "artifact", "t": [0, end_s], "accept_categories": ACCEPT["artifact"]})
     if lab["new_props"] is True:
-        out.append({"id": "new_props", "class": "new_props", "t": [0, end_s], "accept_categories": ["continuity"]})
+        out.append({"id": "new_props", "class": "new_props", "t": [0, end_s], "accept_categories": ACCEPT["new_props"]})
     if lab["scene_changed"] is True:
-        out.append({"id": "scene_changed", "class": "scene_changed", "t": [0, end_s], "accept_categories": ["continuity"]})
+        out.append({"id": "scene_changed", "class": "scene_changed", "t": [0, end_s], "accept_categories": ACCEPT["scene_changed"]})
     return out
 
 
@@ -55,8 +88,8 @@ def main() -> int:
         d = json.loads(p.read_text(encoding="utf-8"))
         reports[p.stem[len("probe-"):]] = d
     rows, cost = [], 0.0
-    cls_tot = {c: {"labels": 0, "caught": 0, "errored_clips_with_label": 0} for c in CHECK_FOR_CLASS}
-    flags = {"gen-artifacts": {"findings": 0, "on_clips_without_label": 0}, "continuity": {"findings": 0, "on_clips_without_label": 0}}
+    cls_tot = {c: {"labels": 0, "labelled": 0, "checked": 0, "caught": 0, "not_checked": []} for c in CHECKS_FOR_CLASS}
+    flags = {c: {"findings": 0, "on_clips_without_label": 0} for c in SCORED_CHECKS}
     for clip in manifest["clips"]:
         key = clip_key(clip)
         rep = reports.get(key)
@@ -64,44 +97,54 @@ def main() -> int:
             raise SystemExit(f"no report for {clip['clip_id']} ({key})")
         end_s = clip["generator"]["served"]["duration_s"]
         labels = labels_for(clip, end_s)
-        statuses = {c["assertion_id"]: c["status"] for c in rep["checks"]}
+        by_id = {c["assertion_id"]: c for c in rep["checks"]}
+        statuses = {k: (by_id[k]["status"] if k in by_id else None) for k in SCORED_CHECKS}
         findings, checks = [], []
         for c in rep["checks"]:
-            if c["assertion_id"] not in CATEGORY_FOR_CHECK:
+            if c["assertion_id"] not in SCORED_CHECKS:
                 continue
             fl = []
             for i, f in enumerate(c.get("findings") or []):
-                fl.append({"id": f"{c['assertion_id']}:{i}", "category": CATEGORY_FOR_CHECK[c["assertion_id"]],
+                cat = scored_category(c["assertion_id"], f)
+                if cat is None:
+                    continue
+                fl.append({"id": f"{c['assertion_id']}:{i}", "category": cat,
                            "root_cause_id": f.get("root_cause_id") or f"{c['assertion_id']}:{i}",
                            "entity": f.get("entity") or "clip", "verdict": f.get("verdict", "review"),
                            "start_ms": 0, "end_ms": int(end_s * 1000), "description": f.get("description", "")})
             checks.append({"assertion_id": c["assertion_id"], "findings": fl})
         score = score_findings({"checks": checks}, {"defects": labels, "fully_annotated": False})
-        matched = {cls: v["matched_labels"] for cls, v in score["surfaced"]["by_class"].items()} if "by_class" in score["surfaced"] else {}
+        matched = {cls: v["matched_labels"] for cls, v in score["surfaced"]["per_class"].items()}
         for lab in labels:
             c = lab["class"]
-            cls_tot[c]["labels"] += 1
-            cls_tot[c]["caught"] += matched.get(c, 0)
-            if statuses.get(CHECK_FOR_CLASS[c]) == "ERROR":
-                cls_tot[c]["errored_clips_with_label"] += 1
+            t = cls_tot[c]
+            t["labelled"] += 1
+            t["labels"] += 1
+            caught = matched.get(c, 0)
+            if caught or any(check_finished(by_id.get(k)) for k in CHECKS_FOR_CLASS[c]):
+                t["checked"] += 1
+                t["caught"] += caught
+            else:
+                t["not_checked"].append(clip["clip_id"])
         label_classes = {l["class"] for l in labels}
         for ch in checks:
             for f in ch["findings"]:
                 flags[ch["assertion_id"]]["findings"] += 1
-                if not any(CHECK_FOR_CLASS[c] == ch["assertion_id"] for c in label_classes):
+                if not any(ch["assertion_id"] in CHECKS_FOR_CLASS[c] for c in label_classes):
                     flags[ch["assertion_id"]]["on_clips_without_label"] += 1
         run_cost = rep["cost"]["estimated_usd"]
         cost += run_cost
         rows.append({"clip_id": clip["clip_id"], "run_id": rep["run"]["run_id"], "mode": clip["generator"]["mode"],
-                     "duration_s": end_s, "decision": rep["decision"]["decision"], "statuses": {k: statuses.get(k) for k in CATEGORY_FOR_CHECK},
+                     "duration_s": end_s, "decision": rep["decision"]["decision"], "statuses": statuses,
                      "labels": sorted(label_classes), "artifact_label_disputed": clip["labels"]["artifact"] == "disputed",
-                     "findings": sum(len(c["findings"]) for c in checks), "cost_usd": round(run_cost, 6)})
+                     "findings": sum(len(c["findings"]) for c in checks),
+                     "continuity_vacuous": "continuity" in by_id and not check_finished(by_id["continuity"]), "cost_usd": round(run_cost, 6)})
     out = {"manifest_sha256": hashlib.sha256(Path(args.manifest).read_bytes()).hexdigest(), "clips": len(rows),
            "estimated_usd": round(cost, 6), "per_class": cls_tot, "findings_by_check": flags,
            "gen_artifacts_errors": sum(r["statuses"]["gen-artifacts"] == "ERROR" for r in rows),
            "rows": rows,
-           "scope": "in-sample; single-shot synthetic clips, --video-only, no reference still supplied to the scan; "
-                    "new_props/scene_changed need a reference or neighbouring shot, which a single clip does not give the continuity pass"}
+           "scope": "in-sample; single-shot synthetic clips, --video-only. caught/checked/labelled: labels whose check did not finish "
+                    "(ERROR, NOT_CHECKED, missing, continuity with 0 shot pairs) are excluded from `checked` and listed in `not_checked`"}
     print(json.dumps({k: out[k] for k in ("estimated_usd", "per_class", "findings_by_check", "gen_artifacts_errors")}, indent=1))
     if args.out:
         Path(args.out).write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
