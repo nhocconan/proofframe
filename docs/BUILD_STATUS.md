@@ -283,3 +283,25 @@ Verification in this workspace:
 - Content check before listing: reference still viewed (no logo, no text); a mid-clip frame of each of the 17 clips viewed (no logo, no text, no client asset; omni t2v shows four generated adults). Fable's review and the judge logo/text checks also passed all 17.
 - One label dispute recorded, not resolved: grok-lite-t2v. Fable: artifact none; a frame check on 2026-10-31 shows a split picture (blurred upper band, duplicated mug). Stored as `artifact: "disputed"`.
 - `scripts/verify_probe_manifest.py <manifest> [MEDIA_DIR]` validates structure and re-hashes media. Run: manifest sha256 `9cdfeaf887a9688cb88313ae74c3e233b878060143b1afb39084b6b86787a4cd`, 17 clips, media verified (exit 0). Tests in `tests/test_evaluation_dataset.py` (37 passed).
+
+## Probe set: deterministic checks, scored (2026-10-31)
+
+- Correction: the manifest was regenerated before this run (t2v `motion_band` is now `unknown`, not `ok`, because the review gave no motion numbers for t2v). Current manifest sha256 `3df16b52826a89f7eaabb73f326447eb5cbb415b4855d1e7b34dccbd57662c1c`; `scripts/verify_probe_manifest.py` against the media directory: 17 clips, media verified.
+- Command (no network, no key, 0 USD), in `proofframe-app:dev`: `python scripts/run_probe_deterministic.py /m --out validation/runs/probe-2026-10-31-deterministic.json` with the probe folder mounted read-only at `/m`. Thresholds fixed before the first run: first-to-last >= 3 and <= 40 grey levels, max step <= 25, camera <= 20 px at 240 px width (camera check on i2v only; the t2v prompt asked for a pan).
+- Result (scored one-to-one by `proofframe.evaluation.score_findings`, confirmed track): i2v clips TP 7, FP 1, FN 0 (precision 7/8, n = 8, in-sample); near-static 2/2 caught (+1 false flag: grok-1.5 at 2.88), uncommanded motion 1/1, camera move 4/4. t2v: 6 of 9 clips exceed the 40 first-to-last band; unadjudicated, precision unknown. 0 NOT_CHECKED, 0 USD.
+- Not measured: peak-frame sampling before/after (needs the paid scan), scene_changed/new_props/artifact classes (not detectable by these checks).
+
+### Paid Meta run on the probe set (NOT run; operator decision)
+
+Worth it: it would give the first precision/recall of the model-based artifact scan on a labelled set (it detects props and smears, which the deterministic checks cannot) and the before/after for peak-frame sampling. Estimate from `verify/plan.py`: $0.124 per clip at the adjudication cap, 17 clips <= $2.11 plus the single-shot continuity pass (small); the research note estimated $1-2. From the repo root, with `.env` holding `META_DEV_API` and the stack up (`docker compose up -d --build db api worker web`):
+
+```bash
+mkdir -p media/probe && for f in ~/ce-samples/2026-10-31-video-probe/*/*.mp4; do cp "$f" "media/probe/$(basename "$(dirname "$f")")-$(basename "$f")"; done
+for f in media/probe/*.mp4; do id=$(basename "$f" .mp4 | tr -c 'A-Za-z0-9\n' '-'); \
+  docker compose exec -e PROOFFRAME_API_URL=http://localhost:8080 -e PROOFFRAME_MAX_RUN_COST_USD=0.25 api \
+    proofframe verify --video-only --video "$id=/media/probe/$(basename "$f")" --wait --out "/dropbox/probe-$id.json"; done
+```
+
+Check `docker compose exec ... proofframe` flags and the per-run cap variable against `docs/RUNBOOK.md` before the first clip (the cap is read by the api/worker container, so set it in `.env` or compose rather than per exec). Record the run ids in `docs/RUN_HISTORY.md`; do not tune prompts before scoring.
+
+- Full suite on the final tree against a throwaway Postgres 16 container (`proofframe-app:dev`, `--network host`): **376 passed, 0 failed** (354 passed / 22 skipped without a database). Web code untouched, so no web typecheck.

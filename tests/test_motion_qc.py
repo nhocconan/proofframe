@@ -92,8 +92,11 @@ def test_pipeline_unmeasurable_motion_is_not_checked_never_pass(tmp_path):
     p = tmp_path / "x.mkv"
     media._run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=64x64:r=10:d=2", "-f", "lavfi", "-i",
                 "sine=frequency=440:sample_rate=16000:duration=3", "-c:v", "ffv1", "-c:a", "pcm_s16le", "-y", str(p)])
-    env = _run(tmp_path, p, "motion_mean_abs_diff", "at_least", 3)
+    env = _run(tmp_path, p, "motion_mean_abs_diff", "at_least", 3, scope={"start_ms": 0, "end_ms": 3000})
     assert env["checks"][0]["status"] == "NOT_CHECKED"
+    # default scope follows the VIDEO stream, so the same file is measurable without an explicit scope
+    env = _run(tmp_path, p, "motion_mean_abs_diff", "at_least", 3)
+    assert env["checks"][0]["status"] == "PASS"
 
 
 def test_plan_counts_peak_frames_and_can_drop_them():

@@ -232,7 +232,8 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                     if pr is None:
                         raise ValueError("decoded technical QC requires an audio or video asset")
                     lo = check.scope.start_ms if check.scope else 0
-                    hi = check.scope.end_ms if check.scope else pr.duration_ms
+                    hi = check.scope.end_ms if check.scope else (
+                        min(pr.duration_ms, pr.video_duration_ms or pr.duration_ms) if motion_metric else pr.duration_ms)
                     if hi > pr.duration_ms:
                         raise ValueError("approved QC scope extends beyond media duration")
                     if motion_metric:

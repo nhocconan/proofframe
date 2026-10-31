@@ -17,7 +17,7 @@
     "scene_changed": "set, window or desk re-staged relative to the reference still (i2v only)",
     "new_props": "an object not in the reference still appears (i2v only)",
     "camera_holds": "framing stays fixed as the prompt asked (false = push-in, pull-back or reframe)",
-    "motion_band": "near_static (a still sold as video) | ok | excess (uncommanded large move)",
+    "motion_band": "near_static (a still sold as video) | ok | excess (uncommanded large move) | unknown (not adjudicated)",
     "artifact": "none | minor | fail | disputed",
     "speech_present": "true | false | unknown; no clip was transcribed, so only wan3-i2v carries a (visual + level) true",
     "identity_kept": "face, glasses and outfit match the reference (i2v only)"
@@ -127,7 +127,7 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "disputed",
         "speech_present": "unknown",
         "identity_kept": null
@@ -194,12 +194,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "none",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "prompt asked for a slow pan, so camera_holds is not applicable",
+      "label_note": "motion_band unknown: the review gave no motion numbers for t2v clips; prompt asked for a slow pan, so camera_holds is not applicable",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
@@ -261,12 +261,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "none",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "prompt asked for a slow pan, so camera_holds is not applicable",
+      "label_note": "motion_band unknown: the review gave no motion numbers for t2v clips; prompt asked for a slow pan, so camera_holds is not applicable",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
@@ -328,12 +328,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "minor",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "steam reads as a smoke blob; prompt asked for a slow pan, so camera_holds is not applicable",
+      "label_note": "steam reads as a smoke blob; motion_band unknown: the review gave no motion numbers for t2v clips; prompt asked for a slow pan, so camera_holds is not applicable",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
@@ -395,12 +395,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": true,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "none",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "audio peak -7.3 dB (laughter plausible; not verified by ear); different prompt from the other t2v clips: four adults on a sofa with a tablet, static medium shot",
+      "label_note": "audio peak -7.3 dB (laughter plausible; not verified by ear); motion_band unknown: the review gave no motion numbers for t2v clips; different prompt from the other t2v clips: four adults on a sofa with a tablet, static medium shot",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
@@ -426,12 +426,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "none",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "audio mean -17.9 dB (not transcribed); prompt asked for a slow pan, so camera_holds is not applicable",
+      "label_note": "audio mean -17.9 dB (not transcribed); motion_band unknown: the review gave no motion numbers for t2v clips; prompt asked for a slow pan, so camera_holds is not applicable",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
@@ -457,12 +457,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "minor",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "knife block perspective drifts slightly; prompt asked for a slow pan, so camera_holds is not applicable",
+      "label_note": "knife block perspective drifts slightly; motion_band unknown: the review gave no motion numbers for t2v clips; prompt asked for a slow pan, so camera_holds is not applicable",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
@@ -488,12 +488,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "none",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "prompt asked for a slow pan, so camera_holds is not applicable",
+      "label_note": "motion_band unknown: the review gave no motion numbers for t2v clips; prompt asked for a slow pan, so camera_holds is not applicable",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
@@ -555,12 +555,12 @@
         "scene_changed": null,
         "new_props": null,
         "camera_holds": null,
-        "motion_band": "ok",
+        "motion_band": "unknown",
         "artifact": "none",
         "speech_present": "unknown",
         "identity_kept": null
       },
-      "label_note": "audio mean -16.5 dB, peak -2.9 dB (loud; not transcribed); prompt asked for a slow pan, so camera_holds is not applicable",
+      "label_note": "audio mean -16.5 dB, peak -2.9 dB (loud; not transcribed); motion_band unknown: the review gave no motion numbers for t2v clips; prompt asked for a slow pan, so camera_holds is not applicable",
       "label_source": "human-adjudicated (Fable review 2026-10-31)"
     },
     {
