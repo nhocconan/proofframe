@@ -1,0 +1,211 @@
+1
+00:00:00,400 --> 00:00:05,934
+AI video generators now produce minutes of
+footage from a single prompt.
+
+2
+00:00:05,994 --> 00:00:07,799
+They also fail quietly.
+
+3
+00:00:07,859 --> 00:00:10,596
+A prop changes design between shots.
+
+4
+00:00:10,656 --> 00:00:13,859
+A line of dialogue comes out wrong.
+
+5
+00:00:13,919 --> 00:00:18,987
+Nobody notices until a human scrubs every
+second of every render.
+
+6
+00:00:19,047 --> 00:00:24,582
+And asking a second model, "does this look
+fine?", is not evidence.
+
+7
+00:00:25,400 --> 00:00:31,522
+ProofFrame is an independent verification
+layer that sits between the approved brief
+
+8
+00:00:31,582 --> 00:00:33,067
+and the generator.
+
+9
+00:00:33,127 --> 00:00:34,097
+Three rules.
+
+10
+00:00:34,157 --> 00:00:35,643
+One: blind observation.
+
+11
+00:00:35,703 --> 00:00:41,309
+The checking model never sees the expected
+answer while it watches.
+
+12
+00:00:41,369 --> 00:00:42,339
+Two: fail-closed.
+
+13
+00:00:42,399 --> 00:00:48,521
+If a check cannot be verified, it is
+unresolved, never a pass.
+
+14
+00:00:48,581 --> 00:00:54,702
+Three: every finding is tied to frames and
+timestamps, so a human,
+
+15
+00:00:54,762 --> 00:00:58,823
+or the generator, can act on it immediately.
+
+16
+00:00:59,400 --> 00:01:02,753
+Give ProofFrame the film and its contract,
+
+17
+00:01:02,813 --> 00:01:06,167
+the locked script compiled into checkable
+assertions,
+
+18
+00:01:06,227 --> 00:01:09,092
+and it verifies shot by shot.
+
+19
+00:01:09,152 --> 00:01:11,530
+This handle must stay folded.
+
+20
+00:01:11,590 --> 00:01:12,506
+It doesn't.
+
+21
+00:01:12,566 --> 00:01:14,944
+This lantern must not change.
+
+22
+00:01:15,004 --> 00:01:15,919
+It does.
+
+23
+00:01:15,979 --> 00:01:21,283
+Dialogue is checked too, by two independent
+transcribers: Muse Voice Transcribe,
+
+24
+00:01:21,343 --> 00:01:27,134
+and ElevenLabs Scribe, which we use because
+it handles Vietnamese dialogue better.
+
+25
+00:01:27,194 --> 00:01:29,085
+Neither sees the script.
+
+26
+00:01:29,145 --> 00:01:30,548
+When they disagree,
+
+27
+00:01:30,608 --> 00:01:35,424
+the line is flagged with exactly what each
+one heard.
+
+28
+00:01:35,484 --> 00:01:39,325
+This full-episode contract run cost eight
+dollars thirty.
+
+29
+00:01:39,900 --> 00:01:40,828
+No brief?
+
+30
+00:01:40,888 --> 00:01:46,264
+Drop in a video and ProofFrame scans it on
+its own:
+
+31
+00:01:46,324 --> 00:01:49,723
+generation artifacts, cross-shot continuity
+breaks, technical defects.
+
+32
+00:01:49,783 --> 00:01:54,664
+It is honest about what a scan means:
+sampled evidence,
+
+33
+00:01:54,724 --> 00:01:56,641
+not a script check.
+
+34
+00:01:56,701 --> 00:02:02,571
+On this eight-minute draft the scan cost two
+dollars ninety-one and confirmed
+
+35
+00:02:02,631 --> 00:02:03,559
+twenty-four defects,
+
+36
+00:02:03,619 --> 00:02:09,489
+including a handle design flip in the
+opening shots that two human
+
+37
+00:02:09,549 --> 00:02:11,466
+review passes had missed.
+
+38
+00:02:11,900 --> 00:02:16,856
+Findings are structured, so they feed
+straight back to production.
+
+39
+00:02:16,916 --> 00:02:21,871
+This line lost its first word at an edit
+boundary.
+
+40
+00:02:21,931 --> 00:02:23,877
+Both transcribers confirmed it.
+
+41
+00:02:23,937 --> 00:02:29,896
+Production fixed the trim, we re-ran, and
+the same check now passes.
+
+42
+00:02:29,956 --> 00:02:35,914
+Fix exactly what is flagged, re-run, and the
+result is classified: fixed,
+
+43
+00:02:35,974 --> 00:02:37,921
+still failing, or regressed.
+
+44
+00:02:37,981 --> 00:02:39,425
+No full re-watch.
+
+45
+00:02:39,900 --> 00:02:44,063
+Built solo during the hackathon on Muse
+Spark,
+
+46
+00:02:44,123 --> 00:02:49,869
+through the Meta Model API, with ElevenLabs
+Scribe for dialogue transcription.
+
+47
+00:02:49,929 --> 00:02:55,676
+It is tested in production on a Vietnamese
+AI-generated school-mystery series.
