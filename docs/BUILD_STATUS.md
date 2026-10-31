@@ -291,7 +291,7 @@ Verification in this workspace:
 - Result (scored one-to-one by `proofframe.evaluation.score_findings`, confirmed track): i2v clips TP 7, FP 1, FN 0 (precision 7/8, n = 8, in-sample); near-static 2/2 caught (+1 false flag: grok-1.5 at 2.88), uncommanded motion 1/1, camera move 4/4. t2v: 6 of 9 clips exceed the 40 first-to-last band; unadjudicated, precision unknown. 0 NOT_CHECKED, 0 USD.
 - Not measured: peak-frame sampling before/after (needs the paid scan), scene_changed/new_props/artifact classes (not detectable by these checks).
 
-### Paid Meta run on the probe set (NOT run; operator decision)
+### Paid Meta run on the probe set (run 2026-10-31, operator-authorised)
 
 Worth it: it would give the first precision/recall of the model-based artifact scan on a labelled set (it detects props and smears, which the deterministic checks cannot) and the before/after for peak-frame sampling. Estimate from `verify/plan.py`: $0.124 per clip at the adjudication cap, 17 clips <= $2.11 plus the single-shot continuity pass (small); the research note estimated $1-2. From the repo root, with `.env` holding `META_DEV_API` and the stack up (`docker compose up -d --build db api worker web`):
 
@@ -303,5 +303,14 @@ for f in media/probe/*.mp4; do id=$(basename "$f" .mp4 | tr -c 'A-Za-z0-9\n' '-'
 ```
 
 Check `docker compose exec ... proofframe` flags and the per-run cap variable against `docs/RUNBOOK.md` before the first clip (the cap is read by the api/worker container, so set it in `.env` or compose rather than per exec). Record the run ids in `docs/RUN_HISTORY.md`; do not tune prompts before scoring.
+
+**Result.** 17 runs, **$0.2397** total (round cap was $2.50; per-run cap $0.25 and project cap $2.50 set by environment override on `docker compose up`, verified inside the api container; `.env` never read, keys passed by `--env-file`/`env_file` path to the operator's `.env`). Run ids and per-run cost: `docs/RUN_HISTORY.md`. Model scan raised 0 findings: 13 clips PASS/PASS, 4 clips (1.04 s Grok) gen-artifacts ERROR (no frame evidence on a clip shorter than the frame grid; fails closed). Recall 0/10 labelled defects (artifact 0/4, new_props 0/3, scene_changed 0/3), 0 false flags; in-sample, reviewer labels, `--video-only` supplies no reference still. No prompt tuned.
+
+Commands (exit 0 unless noted):
+- Stack, distinct project and no host ports so the operator's `proofframe` and `pfcal` stacks were untouched: `PROOFFRAME_MAX_RUN_COST_USD=0.25 PROOFFRAME_MAX_PROJECT_COST_USD=2.50 docker compose -p pfprobe -f docker-compose.yml -f private/compose.probe.yml up -d db api worker` (override file in gitignored `private/`: `ports: !reset []`, `env_file: !override [<path to operator .env>]`, `image: proofframe-app:probe`). The first attempt used the existing `proofframe-app:dev` image, which predates `--video-only` (exit 2, `--contract` required); rebuilt from this worktree as `proofframe-app:probe`.
+- Per clip (17x, media copied to gitignored `media/probe/`): `docker exec -e PROOFFRAME_API_URL=http://localhost:8080 pfprobe-api-1 proofframe verify --video-only --video <id>=/media/probe/<file> --wait --out /dropbox/probe-<id>.json`; reports copied to gitignored `private/probe-reports/`. Cumulative cost checked after each clip against a $2.25 stop line (never close).
+- Score: `python scripts/score_probe_model_scan.py private/probe-reports --out validation/runs/probe-2026-10-31-model-scan.json` in `proofframe-app:probe` (exit 0; the first write attempt failed with a permission error, container user, rerun with `-u $(id -u)`).
+- Teardown: `docker compose -p pfprobe ... down -v` and removal of the `proofframe-app:probe` image; the `proofframe` and `pfcal` stacks were not touched.
+- pytest, `proofframe-app:dev`, `--network none`: 354 passed, 22 skipped (Postgres-backed tests), 0 failed.
 
 - Full suite on the final tree against a throwaway Postgres 16 container (`proofframe-app:dev`, `--network host`): **376 passed, 0 failed** (354 passed / 22 skipped without a database). Web code untouched, so no web typecheck.

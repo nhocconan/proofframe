@@ -50,11 +50,34 @@ after looking at the same clips, so **the result is in-sample**.
 | same checks on the 9 t2v clips | not adjudicated | 6 clips flagged by the motion band | unknown | **unknown** | prompts asked for a pan; camera check not applied |
 
 Not detected, by construction: new props (Omni's phone, Wan's monitor and books), re-staged sets, and the one-frame
-smear in HappyHorse (that clip is caught only because it also moves too much). The costed model-based scan on this
-set has not been run; the exact command and estimate are in [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md). The
-result file is [`validation/runs/probe-2026-10-31-deterministic.json`](validation/runs/probe-2026-10-31-deterministic.json); reproduce with
+smear in HappyHorse (that clip is caught only because it also moves too much). The result file is
+[`validation/runs/probe-2026-10-31-deterministic.json`](validation/runs/probe-2026-10-31-deterministic.json); reproduce with
 `python scripts/run_probe_deterministic.py <media_dir>`. One clip (grok-lite t2v) carries a disputed
 artifact label: the reviewer saw none, a frame check found a split picture with a duplicated mug.
+
+### Model-based scan on the same 17 clips (paid, run once, 2026-10-31)
+
+`proofframe verify --video-only` per clip, Meta `muse-spark-1.3`, per-run cap $0.25, no prompt or threshold changed before
+scoring. **Cost: $0.2397 in total for 17 runs** (list-price estimate from the reports; $0.0078-$0.0202 per clip, far below the
+$0.124/clip the plan allowed because 1-5 s clips get one hunt pass and at most one frame grid). Scored one-to-one by
+`scripts/score_probe_model_scan.py`; result in [`validation/runs/probe-2026-10-31-model-scan.json`](validation/runs/probe-2026-10-31-model-scan.json).
+
+| Label class (clip-level, reviewer's labels) | Labelled | Model scan caught | Model scan false flags | Deterministic checks caught |
+|---|---|---|---|---|
+| generation artifact (fail or minor) | 4 | **0** | 0 | 0 (HappyHorse trips the motion band for another reason) |
+| new props vs the approved still | 3 | **0** | 0 | 0 |
+| scene changed | 3 | **0** | 0 | 0 |
+
+The model scan raised **no finding on any clip**: 13 clips PASS on both audits, 4 clips (the four 1.04 s Grok clips) ERROR
+on the artifact scan. Recall on this set is 0 of 10 labelled defects, precision is undefined (no flags), and the n is 17
+single-shot clips with a model reviewer's labels, scored in-sample. Two limits make "caught 0" less damning than it looks,
+and neither changes the number: `--video-only` gives the continuity pass no reference still, so new props and re-staging
+are not testable in this mode (the clip is the only evidence); and the scan is built for cross-shot and within-shot defects
+in longer film, not 2-5 s single shots. A reference-image check mode is the thing this run says is missing.
+
+Defect found by the run: clips shorter than the artifact scan's 3-4 s frame grid (all four 1.04 s clips) get one hunt
+pass, no frame evidence, and the check ends ERROR ("PASS and FAIL require inspectable evidence references"): it fails
+closed, as designed, but the scan cannot judge sub-1.3 s clips. Not fixed in this commit (no tuning before scoring).
 
 ### Data handling
 

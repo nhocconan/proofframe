@@ -21,8 +21,25 @@ billed separately by ElevenLabs and never touches the Meta ledger.
 | 2026-10-31 | run-d10a4fe125264aed938c | C01 workprint (V5), 13 lines | dialogue (Meta + Scribe, provider voting) | BLOCK | $0.0110 total (Meta $0.0068 + Scribe $0.0042 external) | 8 PASS / 1 FAIL / 4 UNCERTAIN. Scribe broke the year tie (heard "1995", Meta heard "1999"). The 1 FAIL (dlg-c01-s04b, missing first word "hội") corroborated by two independent ASRs + word timestamps |
 | 2026-10-31 | run-842bad0dbd8f41c5817f | EP01 V4 master | video-only (auto-contract rev 2) | BLOCK | $2.91 | Post-scope-fix regression: 17 PASS / 11 FAIL / 2 UNCERTAIN / 0 ERROR; 24 confirmed findings (5 gen-artifacts + 19 continuity), 17 rejected, 14 for review. Cost −75% vs the $11.81 baseline; duplication reduced to 2 boundary-pair defects reported in two adjacent chunks each |
 | 2026-10-31 | run-cf6495aab4a6471db1a0 | C01 workprint REBUILT (S04B trim fixed), 13 lines | dialogue (Meta + Scribe) | REVIEW | $0.0110 total (Meta $0.0068 + Scribe $0.0042 external) | 10 PASS / 0 FAIL / 3 UNCERTAIN — first dialogue run with zero FAILs. dlg-c01-s04b PASS confirms the production fix; the catch→fix→re-verify loop closed |
+| 2026-10-31 | run-33ad8369eac944558c95 | probe flux3-i2v (5.042 s) | video-only | ELIGIBLE | $0.0165 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-a8a8fdc1b2c2479f982e | probe grok-lite-i2v (1.042 s) | video-only | REVIEW | $0.0078 | gen-artifacts ERROR, continuity PASS; 0 findings |
+| 2026-10-31 | run-ab8fae9a7e134e3484dc | probe grok-lite-t2v (1.042 s) | video-only | REVIEW | $0.0080 | gen-artifacts ERROR, continuity PASS; 0 findings |
+| 2026-10-31 | run-0fa87ce598d2414d85cc | probe grok-i2v (1.042 s) | video-only | REVIEW | $0.0076 | gen-artifacts ERROR, continuity PASS; 0 findings |
+| 2026-10-31 | run-516357ef82494b4baa4f | probe grok-t2v (1.042 s) | video-only | REVIEW | $0.0080 | gen-artifacts ERROR, continuity PASS; 0 findings |
+| 2026-10-31 | run-59f0cc39d7d443b381c4 | probe hailuo3max-i2v (5.184 s) | video-only | ELIGIBLE | $0.0180 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-80fda7088c354e4788d8 | probe hailuo3max-t2v (5.184 s) | video-only | ELIGIBLE | $0.0155 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-9c80c815485d48a0a1ef | probe happyhorse-i2v (3.163 s) | video-only | ELIGIBLE | $0.0162 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-6cef6a79bd744e15b42c | probe heygen-t2v (5 s) | video-only | ELIGIBLE | $0.0166 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-5195f0b78df5460bae3b | probe omni-i2v (3.029 s) | video-only | ELIGIBLE | $0.0169 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-320a89d2d6ba4cd19ccc | probe omni-t2v (3.029 s) | video-only | ELIGIBLE | $0.0202 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-6073c1ff2c014823b08f | probe seedance-mini-t2v (4.096 s) | video-only | ELIGIBLE | $0.0154 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-381eb27b66414f719900 | probe seedance2-t2v (4.064 s) | video-only | ELIGIBLE | $0.0161 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-045d6ae58bdc4c588386 | probe seedance25-t2v (4.064 s) | video-only | ELIGIBLE | $0.0151 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-10718ef1b9cc4f56a3f0 | probe wan3-prime-i2v (2.02 s) | video-only | ELIGIBLE | $0.0143 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-1c63fe48e1fc41539111 | probe wan3-prime-t2v (2.02 s) | video-only | ELIGIBLE | $0.0146 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-d7c9887dc446409090bc | probe wan3-i2v (2.02 s) | video-only | ELIGIBLE | $0.0129 | gen-artifacts PASS, continuity PASS; 0 findings |
 
-Budget after the last run: Meta settled ≈ $27.78 of the $140 cap, reserved $0.
+Budget after the probe-set runs: Meta settled ≈ $28.02 of the $140 cap (≈ $27.78 before + $0.24 for the 17 probe runs, summed from the reports; the probe stack used its own fresh ledger capped at $2.50, so the main ledger was not updated), reserved $0.
 
 ## Improvements, and the evidence that forced each one
 

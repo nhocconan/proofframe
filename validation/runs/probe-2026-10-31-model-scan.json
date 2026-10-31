@@ -1,0 +1,307 @@
+{
+ "manifest_sha256": "3df16b52826a89f7eaabb73f326447eb5cbb415b4855d1e7b34dccbd57662c1c",
+ "clips": 17,
+ "estimated_usd": 0.23972,
+ "per_class": {
+  "artifact": {
+   "labels": 4,
+   "caught": 0,
+   "errored_clips_with_label": 0
+  },
+  "new_props": {
+   "labels": 3,
+   "caught": 0,
+   "errored_clips_with_label": 0
+  },
+  "scene_changed": {
+   "labels": 3,
+   "caught": 0,
+   "errored_clips_with_label": 0
+  }
+ },
+ "findings_by_check": {
+  "gen-artifacts": {
+   "findings": 0,
+   "on_clips_without_label": 0
+  },
+  "continuity": {
+   "findings": 0,
+   "on_clips_without_label": 0
+  }
+ },
+ "gen_artifacts_errors": 4,
+ "rows": [
+  {
+   "clip_id": "flux3-i2v",
+   "run_id": "run-33ad8369eac944558c95",
+   "mode": "i2v",
+   "duration_s": 5.042,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.016475
+  },
+  {
+   "clip_id": "grok-lite-i2v",
+   "run_id": "run-a8a8fdc1b2c2479f982e",
+   "mode": "i2v",
+   "duration_s": 1.042,
+   "decision": "REVIEW",
+   "statuses": {
+    "gen-artifacts": "ERROR",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.007847
+  },
+  {
+   "clip_id": "grok-lite-t2v",
+   "run_id": "run-ab8fae9a7e134e3484dc",
+   "mode": "t2v",
+   "duration_s": 1.042,
+   "decision": "REVIEW",
+   "statuses": {
+    "gen-artifacts": "ERROR",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": true,
+   "findings": 0,
+   "cost_usd": 0.007993
+  },
+  {
+   "clip_id": "grok-i2v",
+   "run_id": "run-0fa87ce598d2414d85cc",
+   "mode": "i2v",
+   "duration_s": 1.042,
+   "decision": "REVIEW",
+   "statuses": {
+    "gen-artifacts": "ERROR",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.007643
+  },
+  {
+   "clip_id": "grok-t2v",
+   "run_id": "run-516357ef82494b4baa4f",
+   "mode": "t2v",
+   "duration_s": 1.042,
+   "decision": "REVIEW",
+   "statuses": {
+    "gen-artifacts": "ERROR",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.007954
+  },
+  {
+   "clip_id": "hailuo3max-i2v",
+   "run_id": "run-59f0cc39d7d443b381c4",
+   "mode": "i2v",
+   "duration_s": 5.184,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.017992
+  },
+  {
+   "clip_id": "hailuo3max-t2v",
+   "run_id": "run-80fda7088c354e4788d8",
+   "mode": "t2v",
+   "duration_s": 5.184,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.01555
+  },
+  {
+   "clip_id": "happyhorse-i2v",
+   "run_id": "run-9c80c815485d48a0a1ef",
+   "mode": "i2v",
+   "duration_s": 3.163,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [
+    "artifact",
+    "scene_changed"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.016214
+  },
+  {
+   "clip_id": "heygen-t2v",
+   "run_id": "run-6cef6a79bd744e15b42c",
+   "mode": "t2v",
+   "duration_s": 5,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [
+    "artifact"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.016633
+  },
+  {
+   "clip_id": "omni-i2v",
+   "run_id": "run-5195f0b78df5460bae3b",
+   "mode": "i2v",
+   "duration_s": 3.029,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [
+    "new_props"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.016867
+  },
+  {
+   "clip_id": "omni-t2v",
+   "run_id": "run-320a89d2d6ba4cd19ccc",
+   "mode": "t2v",
+   "duration_s": 3.029,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.020186
+  },
+  {
+   "clip_id": "seedance-mini-t2v",
+   "run_id": "run-6073c1ff2c014823b08f",
+   "mode": "t2v",
+   "duration_s": 4.096,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.015436
+  },
+  {
+   "clip_id": "seedance2-t2v",
+   "run_id": "run-381eb27b66414f719900",
+   "mode": "t2v",
+   "duration_s": 4.064,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [
+    "artifact"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.016078
+  },
+  {
+   "clip_id": "seedance25-t2v",
+   "run_id": "run-045d6ae58bdc4c588386",
+   "mode": "t2v",
+   "duration_s": 4.064,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.015122
+  },
+  {
+   "clip_id": "wan3-prime-i2v",
+   "run_id": "run-10718ef1b9cc4f56a3f0",
+   "mode": "i2v",
+   "duration_s": 2.02,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [
+    "artifact",
+    "new_props",
+    "scene_changed"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.014259
+  },
+  {
+   "clip_id": "wan3-prime-t2v",
+   "run_id": "run-1c63fe48e1fc41539111",
+   "mode": "t2v",
+   "duration_s": 2.02,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.014581
+  },
+  {
+   "clip_id": "wan3-i2v",
+   "run_id": "run-d7c9887dc446409090bc",
+   "mode": "i2v",
+   "duration_s": 2.02,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "PASS"
+   },
+   "labels": [
+    "new_props",
+    "scene_changed"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "cost_usd": 0.01289
+  }
+ ],
+ "scope": "in-sample; single-shot synthetic clips, --video-only, no reference still supplied to the scan; new_props/scene_changed need a reference or neighbouring shot, which a single clip does not give the continuity pass"
+}
