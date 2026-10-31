@@ -10,6 +10,16 @@ verify stays visibly unresolved. It is built on Meta's Muse Spark multimodal mod
 > nothing here is production-qualified yet. See [limitations](#limitations).
 
 
+## Demo
+
+A 3-minute walkthrough (hackathon submission video) shows the product end to end: a real defect
+in generated footage, a contract run against a locked brief, a video-only scan, the dialogue
+check closing a catch-fix-re-verify loop, and one full verification performed **live in the web
+UI** - upload, submit, watch the run, open the evidence. That live run is
+`run-d48a881de32d4aeab001` in [`docs/RUN_HISTORY.md`](docs/RUN_HISTORY.md) (BLOCK, $0.6403);
+nothing in it is staged. The video file ships with the hackathon submission; subtitle sidecars
+and the sample contracts live in [`demo/`](demo/).
+
 ## Headline result: Vietnamese dialogue, two independent ASRs
 
 ProofFrame checks that the dialogue in a rendered cut still matches the locked script. On one real Vietnamese

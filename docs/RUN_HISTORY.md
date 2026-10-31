@@ -60,6 +60,8 @@ Probe v2 (code at f5de35d; after the short-clip grid, single-shot continuity and
 
 Budget after the probe-set runs: Meta settled ≈ $28.02 of the $140 cap (≈ $27.78 before + $0.24 for the 17 probe runs, summed from the reports; the probe stack used its own fresh ledger capped at $2.50, so the main ledger was not updated), reserved $0.
 
+| 2026-10-31 | run-d48a881de32d4aeab001 | 60 s excerpt of an AI-generated episode master | contract (demo-live-check, 4 checks) via the web UI, live | BLOCK | \/bin/bash.6403 | The run performed live in the demo video: r0-handle-folded FAIL (raised vs approved folded), continuity FAIL (13 findings incl. the black-to-red handle-grip change), gen-artifacts UNCERTAIN (3), r0-antenna-folded PASS |
+
 ## Improvements, and the evidence that forced each one
 
 - **Scratch cleanup (run lifecycle)** — run-009b's 20 ERRORs and run-76f4's death traced to run scratch (/tmp) never being deleted; the 2 GB worker tmpfs filled up. Fix: every run removes its own scratch in a finally block.
