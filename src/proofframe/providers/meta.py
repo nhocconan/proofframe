@@ -119,7 +119,7 @@ class MetaObserver:
                                          amount_usd=self._upper_bound(est_tokens), purpose=purpose)
         except BudgetExhausted as exc:
             return self._skipped(purpose, str(exc))
-        file_id = None
+        file_id, result = None, None
         try:
             file_id = self._upload(video)
         except Exception as exc:  # upload is free; no billing to settle beyond reservation release
@@ -129,12 +129,14 @@ class MetaObserver:
         try:
             content = [{"type": "input_text", "text": question},
                        {"type": "input_video", "file_id": file_id, "fps": fps}]
-            return self._respond(content, schema, schema_name, purpose, res_id)
+            result = self._respond(content, schema, schema_name, purpose, res_id)
+            return result
         finally:
-            try:
-                self.client.delete(f"{self.base_url}/files/{file_id}", headers=self._h, timeout=60)
-            except Exception:
-                pass
+            # Meta: "Uploaded files don't expire" -> remove ours after every call (DELETE /v1/files/{file_id},
+            # https://dev.meta.ai/docs/file-handling, read 2026-10-31). The outcome is recorded, never silent.
+            outcome = self._delete_file(file_id)
+            if result is not None:
+                result.trace["upload_deleted"] = outcome
 
     def observe_images(self, *, images: list[tuple[str, Path]], question: str, schema: dict,
                        schema_name: str, purpose: str) -> CallResult:
@@ -225,6 +227,16 @@ class MetaObserver:
         return self._finish_asr(trace, "ok", usage, cost, None, remote, parsed)
 
     # ---------- internals
+    def _delete_file(self, file_id: str) -> str:
+        """Best-effort delete of an uploaded file; returns 'deleted' | 'not_found' | 'failed:<why>'."""
+        try:
+            r = self.client.delete(f"{self.base_url}/files/{file_id}", headers=self._h, timeout=60)
+        except Exception as exc:
+            return f"failed:{type(exc).__name__}"
+        if r.status_code in (200, 202, 204):
+            return "deleted"
+        return "not_found" if r.status_code == 404 else f"failed:http_{r.status_code}"
+
     def _upload(self, path: Path) -> str:
         with open(path, "rb") as fh:
             r = self.client.post(f"{self.base_url}/files", headers=self._h, data={"purpose": "user_data"},

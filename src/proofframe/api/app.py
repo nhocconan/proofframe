@@ -49,6 +49,30 @@ CAPABILITIES: dict[str, Any] = {
         "muse-voice-transcribe-1.0": {"endpoint": "/asr/transcribe", "granularity": "turn-level",
                                       "word_timestamps": False},
     },
+    # Vendor data handling as read from vendor documents (URL + date). Not legal advice; re-read before a client.
+    "data_handling": {
+        "meta_muse_spark_standard": {
+            "training": "none: \"In Standard mode, your content ... is not used to train Meta models.\"",
+            "retention": "uploaded files persist until deleted (\"don't expire\"); ProofFrame sends DELETE "
+                         "/v1/files/{file_id} after every video call and records the outcome in the trace "
+                         "(`upload_deleted`); request/response log retention: not found in the docs",
+            "sources": ["https://dev.meta.ai/docs/models", "https://dev.meta.ai/docs/file-handling"],
+            "read_on": "2026-10-31"},
+        "meta_muse_voice_transcribe": {
+            "training": "none in Standard mode; zero data retention documented for this endpoint only",
+            "sources": ["https://dev.meta.ai/docs/speech-to-text", "https://dev.meta.ai/docs/pricing-rate-limits"],
+            "read_on": "2026-10-31"},
+        "elevenlabs_scribe_v2": {
+            "training": "non-Enterprise: may train unless the workspace toggle \"Improve the models for everyone\" "
+                        "is off (Enterprise: not trained by default); this deployment has not confirmed the toggle",
+            "retention": "zero-retention mode (enable_logging=false) is Enterprise-only; API retention period "
+                         "not found in the docs. Optional provider: disabled when ELEVENLABS_API_KEY is unset, "
+                         "then dialogue checks run on Meta only with an explicit single-provider limitation",
+            "sources": ["https://elevenlabs.io/docs/capabilities/speech-to-text",
+                        "https://elevenlabs.io/docs/api-reference/speech-to-text/convert",
+                        "https://elevenlabs.io/terms-of-use", "https://elevenlabs.io/privacy-policy"],
+            "read_on": "2026-10-31"},
+    },
     "not_established": ["detector accuracy", "timestamp precision", "SAM recall", "ASR accuracy on real speech"],
 }
 

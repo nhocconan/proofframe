@@ -122,3 +122,44 @@ def test_asr_invalid_transcript_or_duration_is_error(tmp_path, body):
     o, _ = obs_with(lambda req: httpx.Response(200, json=body))
     assert o.transcribe_wav(audio=wav, duration_ms=1000, language_bias=None,
                             purpose="dialogue:x").outcome == "invalid_output"
+
+
+def _video_calls(tmp_path, respond_status=200, delete_status=204, delete_raises=False):
+    seen = []
+
+    def handler(req):
+        seen.append((req.method, req.url.path))
+        if req.method == "POST" and req.url.path.endswith("/files"):
+            return httpx.Response(200, json={"id": "file_123"})
+        if req.method == "DELETE":
+            if delete_raises:
+                raise httpx.ConnectError("down", request=req)
+            return httpx.Response(delete_status)
+        return httpx.Response(respond_status, json=ok_body('{"defects": []}'))
+    o, _ = obs_with(handler)
+    clip = tmp_path / "c.mp4"
+    clip.write_bytes(b"\x00\x00\x00\x18ftypmp42")
+    schema = {"type": "object", "additionalProperties": False, "required": ["defects"],
+              "properties": {"defects": {"type": "array"}}}
+    r = o.observe_video(video=clip, question="q", schema=schema, schema_name="s", fps=1.0, duration_s=1.0,
+                        purpose="hunt:x")
+    return r, seen
+
+
+def test_uploaded_video_is_deleted_after_a_successful_call(tmp_path):
+    r, seen = _video_calls(tmp_path)
+    assert r.ok and ("DELETE", "/v1/files/file_123") in seen and seen[-1][0] == "DELETE"
+    assert r.trace["upload_deleted"] == "deleted"
+
+
+def test_uploaded_video_is_deleted_even_when_the_model_call_fails(tmp_path):
+    r, seen = _video_calls(tmp_path, respond_status=400)
+    assert not r.ok and ("DELETE", "/v1/files/file_123") in seen
+
+
+@pytest.mark.parametrize("kwargs,expected", [({"delete_status": 500}, "failed:http_500"),
+                                             ({"delete_raises": True}, "failed:ConnectError"),
+                                             ({"delete_status": 404}, "not_found")])
+def test_failed_delete_is_recorded_not_silent(tmp_path, kwargs, expected):
+    r, _ = _video_calls(tmp_path, **kwargs)
+    assert r.trace["upload_deleted"] == expected

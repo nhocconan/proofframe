@@ -270,3 +270,9 @@ Verification in this workspace:
 - `media.extract_frame` clamps every sample time to the first video stream's duration (container duration is longer when audio outlasts picture) and fails loudly instead of leaving a missing PNG; `tests/test_media_clamp.py` fails on the previous media.py (5 failed) and passes now.
 - Artifact scan adds up to 4 peak-difference frames to the 2 s grid (`RunPlan.peak_frames`, dropped first by the budget plan).
 - Tests run in `proofframe-app:dev` (python 3.12, ffmpeg): `docker run --rm --network none -v <worktree>:/w -w /w -e PYTHONPATH=/w/src:/w proofframe-app:dev python -m pytest -q -p no:cacheprovider` — see commit message for the count.
+
+## Meta upload cleanup and vendor data-handling rows (2026-10-31)
+
+- `MetaObserver.observe_video` already deleted its upload in a bare `finally`; the failure was swallowed. It now records the outcome (`deleted | not_found | failed:<why>`) in the call trace as `upload_deleted`, and three tests assert the DELETE (success, model-call failure, failed delete). Meta file docs re-read 2026-10-31 (https://dev.meta.ai/docs/file-handling): `DELETE /v1/files/{file_id}`; uploads "don't expire"; optional `expires_after` {anchor: created_at, seconds 3600-2592000} — not used, because the multipart field encoding is not documented there.
+- `/v1/capabilities` gains `data_handling` rows (training/retention/sources/read_on) for Meta Standard, Muse Voice Transcribe and ElevenLabs Scribe v2, from the 2026-10-31 vendor reading in the Content Engine research note. ElevenLabs toggle state for this deployment is NOT confirmed.
+- pytest in `proofframe-app:dev`: 350 passed, 22 skipped (Postgres-backed API tests skip without a database).
