@@ -1,0 +1,509 @@
+{
+ "manifest_sha256": "3df16b52826a89f7eaabb73f326447eb5cbb415b4855d1e7b34dccbd57662c1c",
+ "thresholds": {
+  "static": [
+   "motion_mean_abs_diff",
+   "at_least",
+   3
+  ],
+  "excess_total": [
+   "motion_mean_abs_diff",
+   "at_most",
+   40
+  ],
+  "excess_step": [
+   "motion_max_step",
+   "at_most",
+   25
+  ],
+  "camera": [
+   "global_motion_px",
+   "at_most",
+   20
+  ]
+ },
+ "clips": 17,
+ "estimated_usd": 0,
+ "unresolved_findings_total": 6,
+ "not_checked_checks": 0,
+ "per_class": {
+  "motion_static": {
+   "labels": 2,
+   "caught": 2,
+   "missed": 0,
+   "false_positive_i2v": 1,
+   "t2v_findings_unadjudicated": 0
+  },
+  "motion_excess": {
+   "labels": 1,
+   "caught": 1,
+   "missed": 0,
+   "false_positive_i2v": 0,
+   "t2v_findings_unadjudicated": 6
+  },
+  "camera_move": {
+   "labels": 4,
+   "caught": 4,
+   "missed": 0,
+   "false_positive_i2v": 0,
+   "t2v_findings_unadjudicated": 0
+  }
+ },
+ "rows": [
+  {
+   "clip_id": "flux3-i2v",
+   "mode": "i2v",
+   "end_ms": 5042,
+   "statuses": {
+    "static": "FAIL",
+    "excess_total": "PASS",
+    "excess_step": "PASS",
+    "camera": "PASS"
+   },
+   "values": {
+    "static": 0.92,
+    "excess_total": 0.92,
+    "excess_step": 0.37,
+    "camera": 0.0
+   },
+   "labels": [
+    "motion_static"
+   ],
+   "confirmed": {
+    "tp": 1,
+    "fp": 0,
+    "fn": 0,
+    "findings": 1,
+    "unresolved_findings": 0,
+    "matched_labels": 1
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "grok-lite-i2v",
+   "mode": "i2v",
+   "end_ms": 1042,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "PASS",
+    "excess_step": "PASS",
+    "camera": "PASS"
+   },
+   "values": {
+    "static": 5.23,
+    "excess_total": 5.23,
+    "excess_step": 3.13,
+    "camera": 0.0
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "findings": 0,
+    "unresolved_findings": 0,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "grok-lite-t2v",
+   "mode": "t2v",
+   "end_ms": 1042,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "PASS",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 21.66,
+    "excess_total": 21.66,
+    "excess_step": 14.23
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "findings": 0,
+    "unresolved_findings": 0,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "grok-i2v",
+   "mode": "i2v",
+   "end_ms": 1042,
+   "statuses": {
+    "static": "FAIL",
+    "excess_total": "PASS",
+    "excess_step": "PASS",
+    "camera": "PASS"
+   },
+   "values": {
+    "static": 2.88,
+    "excess_total": 2.88,
+    "excess_step": 2.02,
+    "camera": 0.0
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": 0,
+    "fp": 1,
+    "fn": 0,
+    "findings": 1,
+    "unresolved_findings": 0,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "grok-t2v",
+   "mode": "t2v",
+   "end_ms": 1042,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "PASS",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 36.99,
+    "excess_total": 36.99,
+    "excess_step": 22.98
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "findings": 0,
+    "unresolved_findings": 0,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "hailuo3max-i2v",
+   "mode": "i2v",
+   "end_ms": 5167,
+   "statuses": {
+    "static": "FAIL",
+    "excess_total": "PASS",
+    "excess_step": "PASS",
+    "camera": "PASS"
+   },
+   "values": {
+    "static": 1.01,
+    "excess_total": 1.01,
+    "excess_step": 1.2,
+    "camera": 0.0
+   },
+   "labels": [
+    "motion_static"
+   ],
+   "confirmed": {
+    "tp": 1,
+    "fp": 0,
+    "fn": 0,
+    "findings": 1,
+    "unresolved_findings": 0,
+    "matched_labels": 1
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "hailuo3max-t2v",
+   "mode": "t2v",
+   "end_ms": 5167,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "FAIL",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 46.04,
+    "excess_total": 46.04,
+    "excess_step": 6.76
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": null,
+    "fp": null,
+    "fn": null,
+    "findings": 1,
+    "unresolved_findings": 1,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "happyhorse-i2v",
+   "mode": "i2v",
+   "end_ms": 3042,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "FAIL",
+    "excess_step": "FAIL",
+    "camera": "FAIL"
+   },
+   "values": {
+    "static": 72.17,
+    "excess_total": 72.17,
+    "excess_step": 59.07,
+    "camera": 59.13
+   },
+   "labels": [
+    "motion_excess",
+    "camera_move"
+   ],
+   "confirmed": {
+    "tp": 2,
+    "fp": 0,
+    "fn": 0,
+    "findings": 2,
+    "unresolved_findings": 0,
+    "matched_labels": 2
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "heygen-t2v",
+   "mode": "t2v",
+   "end_ms": 5167,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "FAIL",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 62.88,
+    "excess_total": 62.88,
+    "excess_step": 17.15
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": null,
+    "fp": null,
+    "fn": null,
+    "findings": 1,
+    "unresolved_findings": 1,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "omni-i2v",
+   "mode": "i2v",
+   "end_ms": 3000,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "PASS",
+    "excess_step": "PASS",
+    "camera": "FAIL"
+   },
+   "values": {
+    "static": 26.89,
+    "excess_total": 26.89,
+    "excess_step": 17.65,
+    "camera": 80.22
+   },
+   "labels": [
+    "camera_move"
+   ],
+   "confirmed": {
+    "tp": 1,
+    "fp": 0,
+    "fn": 0,
+    "findings": 1,
+    "unresolved_findings": 0,
+    "matched_labels": 1
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "omni-t2v",
+   "mode": "t2v",
+   "end_ms": 3000,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "PASS",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 18.86,
+    "excess_total": 18.86,
+    "excess_step": 8.79
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "findings": 0,
+    "unresolved_findings": 0,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "seedance-mini-t2v",
+   "mode": "t2v",
+   "end_ms": 4042,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "FAIL",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 59.56,
+    "excess_total": 59.56,
+    "excess_step": 22.07
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": null,
+    "fp": null,
+    "fn": null,
+    "findings": 1,
+    "unresolved_findings": 1,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "seedance2-t2v",
+   "mode": "t2v",
+   "end_ms": 4042,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "FAIL",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 50.9,
+    "excess_total": 50.9,
+    "excess_step": 16.53
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": null,
+    "fp": null,
+    "fn": null,
+    "findings": 1,
+    "unresolved_findings": 1,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "seedance25-t2v",
+   "mode": "t2v",
+   "end_ms": 4042,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "FAIL",
+    "excess_step": "PASS"
+   },
+   "values": {
+    "static": 47.27,
+    "excess_total": 47.27,
+    "excess_step": 8.0
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": null,
+    "fp": null,
+    "fn": null,
+    "findings": 1,
+    "unresolved_findings": 1,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "wan3-prime-i2v",
+   "mode": "i2v",
+   "end_ms": 2000,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "PASS",
+    "excess_step": "PASS",
+    "camera": "FAIL"
+   },
+   "values": {
+    "static": 34.97,
+    "excess_total": 34.97,
+    "excess_step": 13.11,
+    "camera": 30.0
+   },
+   "labels": [
+    "camera_move"
+   ],
+   "confirmed": {
+    "tp": 1,
+    "fp": 0,
+    "fn": 0,
+    "findings": 1,
+    "unresolved_findings": 0,
+    "matched_labels": 1
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "wan3-prime-t2v",
+   "mode": "t2v",
+   "end_ms": 2000,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "FAIL",
+    "excess_step": "FAIL"
+   },
+   "values": {
+    "static": 61.28,
+    "excess_total": 61.28,
+    "excess_step": 28.72
+   },
+   "labels": [],
+   "confirmed": {
+    "tp": null,
+    "fp": null,
+    "fn": null,
+    "findings": 1,
+    "unresolved_findings": 1,
+    "matched_labels": 0
+   },
+   "cost_usd": 0
+  },
+  {
+   "clip_id": "wan3-i2v",
+   "mode": "i2v",
+   "end_ms": 2000,
+   "statuses": {
+    "static": "PASS",
+    "excess_total": "PASS",
+    "excess_step": "PASS",
+    "camera": "FAIL"
+   },
+   "values": {
+    "static": 32.82,
+    "excess_total": 32.82,
+    "excess_step": 11.23,
+    "camera": 42.72
+   },
+   "labels": [
+    "camera_move"
+   ],
+   "confirmed": {
+    "tp": 1,
+    "fp": 0,
+    "fn": 0,
+    "findings": 1,
+    "unresolved_findings": 0,
+    "matched_labels": 1
+   },
+   "cost_usd": 0
+  }
+ ],
+ "scope": "in-sample for thresholds; synthetic single-shot clips; i2v labels cover motion/camera only"
+}

@@ -22,11 +22,11 @@ from proofframe_contracts.policy import evaluate
 from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
-from . import anomaly, continuity, dialogue
+from . import anomaly, continuity, dialogue, motion, reference
 from .compare import (CANNOT_DETERMINE, FrameReading, classify, coverage_grid, decide, decide_coverage,
                       numeric_status, technical)
 
-EVALUATOR_VERSION = "pf-verify-0.19(dialogue-asr,scribe-vote,scribe-language,number-canon,scoped-continuity,scratch-cleanup,text-coverage)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+EVALUATOR_VERSION = "pf-verify-0.20(reference-match,single-shot-continuity-not-checked,dialogue-asr,scribe-vote,scribe-language,number-canon,scoped-continuity,scratch-cleanup,text-coverage)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
 # 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
 # 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared; 0.8: cross-shot continuity audit; 0.9: pairwise + swapped-order adjudication; 0.10: intrinsic long-range checks, insert bridging; 0.11: adjudicate up to 24 suspicions; 0.12: assertions evaluated concurrently; 0.13: pre-run budget plan, partial results on a budget stop
 VIDEO_FPS = 1.0
@@ -97,6 +97,16 @@ DENSE_MAX = 16
 def _dense_grid(lo: int, hi: int) -> list[int]:
     n = min(DENSE_MAX, max(2, (hi - lo) // DENSE_STEP_MS))
     return [int(lo + (hi - lo) * (i + 0.5) / n) for i in range(n)]
+
+
+def _scan_grid(src: Path, lo: int, hi: int, step_ms: int, min_frames: int = 3) -> list[int]:
+    """Stage-2 sample times: every `step_ms` (offset half a step), shrinking on short clips to at least
+    first/middle/last, all clamped into the decoded video stream (not the longer container)."""
+    grid = list(range(lo + step_ms // 2, hi, step_ms))
+    if len(grid) < min_frames:
+        last = max(lo, min(hi - 1, media.clamp_to_video(src, hi)))
+        grid = [lo + (last - lo) * i // (min_frames - 1) for i in range(min_frames)]
+    return sorted({media.clamp_to_video(src, t) for t in grid})
 
 
 def _frame_times(segments: list[dict], lo: int, hi: int) -> tuple[list[int], str]:
@@ -188,9 +198,12 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
             try:
                 if sha not in shot_cache:
                     shot_cache[sha] = media.detect_shots(store.path_for(sha), pr_c.duration_ms)
-                workload.continuity_shots.append(shot_cache[sha])
+                if len(shot_cache[sha]) >= 2:  # one continuous shot has no cross-shot pairs: no model call
+                    workload.continuity_shots.append(shot_cache[sha])
             except Exception:
                 pass  # the audit itself re-runs detection and reports the error on its own row
+        elif o.kind == "reference_match":
+            workload.reference_checks += 1
         else:
             workload.assertion_minutes.append(max(1, -(-(hi_c - lo_c) // 60_000)))
             if o.min_coverage is not None:
@@ -228,7 +241,9 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                 pr = probes.get(target.asset_id)
                 path = store.path_for(target.sha256)
                 audio_metric = obs.technical_metric in {"integrated_loudness_lufs", "true_peak_dbtp"}
-                if audio_metric or obs.technical_metric in {"black_duration_ms", "freeze_duration_ms", "silence_duration_ms"}:
+                motion_metric = obs.technical_metric in motion.METRICS
+                if audio_metric or motion_metric or obs.technical_metric in {
+                        "black_duration_ms", "freeze_duration_ms", "silence_duration_ms"}:
                     from .technical import scan
                     if pr is None:
                         raise ValueError("decoded technical QC requires an audio or video asset")
@@ -236,7 +251,17 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                     hi = check.scope.end_ms if check.scope else pr.duration_ms
                     if hi > pr.duration_ms:
                         raise ValueError("approved QC scope extends beyond media duration")
-                    if audio_metric:
+                    # each detector reads ONE stream: trim container slack off its scope (and say so)
+                    # (motion without an approved scope means "the whole picture", however long the audio runs)
+                    lo, hi, trim_note = pr.clip_scope(
+                        "audio" if audio_metric or obs.technical_metric == "silence_duration_ms" else "video", lo, hi,
+                        slack_ms=pr.duration_ms if motion_metric and not check.scope else None)
+                    if motion_metric:
+                        try:
+                            measurement = motion.measure(path, start_ms=lo, end_ms=hi, metric=obs.technical_metric)
+                        except ValueError as exc:  # cannot run on this media/scope: never a PASS
+                            raise _NotChecked(f"{obs.technical_metric} could not be measured: {exc}")
+                    elif audio_metric:
                         from .audio import UnmeasurableAudio, measure
                         try:
                             measurement = measure(path, start_ms=lo, end_ms=hi, metric=obs.technical_metric)
@@ -248,10 +273,12 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                             return
                     else:
                         measurement = scan(path, start_ms=lo, end_ms=hi, metric=obs.technical_metric)
+                    if trim_note:
+                        measurement["limitations"] = [*measurement["limitations"], trim_note]
                     checked = measurement["coverage"]
                     complete = checked["start_ms"] <= lo and checked["end_ms"] >= hi
                     actual = measurement["value"]
-                    if not audio_metric and int(check.expected) < 0:
+                    if not audio_metric and not motion_metric and int(check.expected) < 0:
                         raise ValueError("expected duration must be nonnegative")
                     status = numeric_status(actual, check.expected, obs.tolerance, obs.technical_relation,
                                             measurement.get("numeric_resolution", 0))
@@ -266,14 +293,15 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                     mpath.write_text(json.dumps(measurement, sort_keys=True), encoding="utf-8")
                     msha = store.put_file(mpath, media_type="application/json")
                     ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
-                                  artifact_sha256=msha, kind="scan", inspection="exhaustive",
+                                  artifact_sha256=msha, kind="scan",
+                                  inspection="sampled" if motion_metric else "exhaustive",
                                   uri=f"/v1/media/{msha}", extractor_version=measurement["detector_version"],
                                   trace_id=f"tr-qc-{check.assertion_id}",
                                   start_ms=checked["start_ms"], end_ms=checked["end_ms"])
                     add_evidence(ev, role="target", label=f"decoded {obs.technical_metric}",
                                  media_type="application/json")
                     intervals = measurement.get("intervals", [])
-                    row.update(observed=f"{actual} {units}" if audio_metric else str(actual),
+                    row.update(observed=f"{actual} {units}" if audio_metric or motion_metric else str(actual),
                                evidence_ids=[ev.evidence_id], rationale=why,
                                technical_measurement=measurement,
                                focus=intervals[0] if intervals else {"start_ms": lo, "end_ms": hi},
@@ -300,6 +328,22 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                                                           rationale=why, evaluator_version=EVALUATOR_VERSION)
                 return
 
+            if obs.kind == "reference_match":
+                if len(check.reference_asset_ids) != 1:
+                    raise ValueError("reference_match needs exactly one reference asset")
+                ref = by_id[check.reference_asset_ids[0]]
+                if specs[ref.asset_id].role != "canonical_reference" or ref.media_type != "image":
+                    raise ValueError("reference_match needs a hash-bound canonical_reference image asset")
+                out = reference.evaluate(check=check, target=target, reference=ref, pr=probes[target.asset_id],
+                                         src=store.path_for(target.sha256), ref_src=store.path_for(ref.sha256),
+                                         observer=observer, work=work, store=store, row=row,
+                                         add_evidence=add_evidence)
+                row["rationale"] = out.rationale
+                results[check.assertion_id] = CheckResult(
+                    assertion_id=check.assertion_id, status=Status(out.status),
+                    evidence_ids=tuple(dict.fromkeys(out.evidence_ids)) if out.status == "PASS" else (),
+                    rationale=out.rationale[:2000], evaluator_version=EVALUATOR_VERSION)
+                return
             if obs.kind == "cross_shot_continuity":
                 _continuity_audit(check, target, probes[target.asset_id], store.path_for(target.sha256),
                                   observer, work, store, row, results, add_evidence,
@@ -452,10 +496,11 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
             for label, t in zip(labels, times):
                 fpath = media.extract_frame(src, t, work / f"{check.assertion_id}-{label}.png")
                 fsha = store.put_file(fpath, media_type="image/png")
+                f0, f1 = media.frame_interval(src, t, pr.duration_ms, FRAME_SPAN_MS)
                 ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
                               artifact_sha256=fsha, kind="frame", inspection="sampled",
                               uri=f"/v1/media/{fsha}", extractor_version=media.EXTRACTOR_VERSION,
-                              trace_id="pending", start_ms=t, end_ms=min(t + FRAME_SPAN_MS, pr.duration_ms))
+                              trace_id="pending", start_ms=f0, end_ms=f1)
                 frame_ev[label] = ev
                 frame_items.append((label, fpath))
             q_conf, s_conf = confirm_question(obs, labels)
@@ -649,10 +694,10 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
 
     def frame_ev(t: int, path: Path, label: str, role: str, trace_id: str) -> Evidence:
         fsha = store.put_file(path, media_type="image/png")
+        f0, f1 = media.frame_interval(src, t, pr.duration_ms, FRAME_SPAN_MS)
         ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
                       artifact_sha256=fsha, kind="frame", inspection="sampled", uri=f"/v1/media/{fsha}",
-                      extractor_version=media.EXTRACTOR_VERSION, trace_id=trace_id, start_ms=t,
-                      end_ms=min(t + FRAME_SPAN_MS, pr.duration_ms))
+                      extractor_version=media.EXTRACTOR_VERSION, trace_id=trace_id, start_ms=f0, end_ms=f1)
         add_evidence(ev, role=role, label=label, media_type="image/png")
         return ev
 
@@ -672,13 +717,24 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
                 failed += 1
             continue
         for d in res.parsed.get("defects", []):
-            s0 = max(w0, min(w1, w0 + int(max(0.0, float(d["start_s"])) * 1000)))
-            s1 = max(s0 + 200, min(w1, w0 + int(max(0.0, float(d["end_s"])) * 1000)))
+            # a candidate lives inside its window: a 200 ms minimum span must not run past the window end
+            # (a defect "at 1.0 s" in a 1.04 s clip became 1000-1200 ms and sampled times the clip lacks)
+            s0 = max(w0, min(w1 - 200, w0 + int(max(0.0, float(d["start_s"])) * 1000)))
+            s1 = min(w1, max(s0 + 200, w0 + int(max(0.0, float(d["end_s"])) * 1000)))
             cands.append(anomaly.Candidate(s0, s1, d["category"], d["severity"], d["description"], {"video"}))
 
     # stage 2: independent frame-grid checklist (batches run in parallel)
     from concurrent.futures import ThreadPoolExecutor
-    grid = list(range(lo + plan.grid_step_ms // 2, hi, plan.grid_step_ms))
+    grid = _scan_grid(src, lo, hi, plan.grid_step_ms)
+    peak_note = []
+    if plan.peak_frames > 0:
+        try:  # sub-second events fall between a 2 s grid: add the largest decoded changes (no model cost)
+            extra = [t for t in motion.peak_times(src, lo, hi, plan.peak_frames)
+                     if all(abs(t - g) >= 250 for g in grid)]
+            grid = sorted(set(grid) | set(extra))
+            peak_note = [f"{len(extra)} extra frame(s) at the largest frame-to-frame changes"]
+        except (ValueError, RuntimeError) as exc:
+            peak_note = [f"peak-frame sampling not run: {exc}"]
     jobs = []
     for b in range(0, len(grid), anomaly.GRID_BATCH):
         batch = grid[b:b + anomaly.GRID_BATCH]
@@ -758,8 +814,12 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
     ev_ids = [e for f in (key if status != "PASS" else findings[:1]) for e in f["evidence_ids"]]
     if status == "PASS" and not ev_ids:
         # evidence for a clean scan = the grid frames that were inspected
+        # only frames that were actually extracted can be cited
         ev_ids = [frame_ev(t, work / f"{aid}-G{i + 1}.png", f"G{i + 1} @ {t/1000:.1f}s (grid)", "target",
-                           row["trace_ids"][-1]).evidence_id for i, t in enumerate(grid[:3])]
+                           row["trace_ids"][-1]).evidence_id for i, t in enumerate(grid[:3])
+                  if (work / f"{aid}-G{i + 1}.png").exists()]
+        if not ev_ids:
+            status, why = "NOT_CHECKED", why + " No grid frame was extracted, so nothing was inspected."
     row.update(observed=("; ".join(f"{f['category']}/{f['severity']} {f['verdict']} @{f['start_ms']/1000:.1f}s"
                                    for f in shown) or (BUDGET_STOP_NOTE if skipped else "no surviving defects")),
                evidence_ids=ev_ids, findings=findings, rationale=why,
@@ -767,6 +827,7 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
                limitations=[f"sampled: {anomaly.VIDEO_FPS:g} fps video pass + frames every {anomaly.GRID_STEP_MS/1000:g} s; "
                             "defects shorter than the sampling interval can be missed",
                             f"at most {plan.max_candidates} candidates adjudicated per run",
+                            *peak_note,
                             "all stages use the same model family (muse-spark-1.3); not qualified on a labelled benchmark"]
                            + plan.limits("scan"))
     results[aid] = CheckResult(assertion_id=aid, status=Status(status),
@@ -790,6 +851,20 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
         idx = [i for i, (a, b) in enumerate(shots) if b > lo_s and a < hi_s]
         if idx:
             shots = [shots[i] for i in range(max(0, idx[0] - 1), min(len(shots), idx[-1] + 2))]
+    if len(shots) < 2:
+        # Suspicions only exist between shots, so with one continuous shot nothing can be compared: that is not a
+        # clean audit. No model call is made (the continuity log could not produce a usable suspicion either).
+        status = Status.NOT_APPLICABLE if check.approved_exclusion else Status.NOT_CHECKED
+        why = (f"{status.value}: a single continuous shot has no cross-shot pairs to compare (0 shot pairs compared); "
+               "this audit does not look inside a shot.")
+        row.update(observed="not applicable: single continuous shot", evidence_ids=[], findings=[],
+                   shots=[{"start_ms": a, "end_ms": b} for a, b in shots], continuity_log=[], rationale=why,
+                   focus=None, limitations=[f"{len(shots)} shot from FFmpeg hard-cut detection (dissolves may be "
+                                            "missed); 0 shot pairs compared",
+                                            "changes inside one shot are the artifact scan's job, not this audit's"])
+        results[aid] = CheckResult(assertion_id=aid, status=status, rationale=why,
+                                   evaluator_version=EVALUATOR_VERSION)
+        return
     keys = continuity.plan_keyframes(shots)
     paths = {k.label: media.extract_frame(src, k.t_ms, work / f"{aid}-{k.label}.png", width=768) for k in keys}
     hires: dict[int, list[tuple[int, Path]]] = {}
@@ -900,10 +975,11 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
         for role, i in (("A", a), ("B", b)):
             for t, p in shot_frames(i):
                 fsha = store.put_file(p, media_type="image/png")
+                f0, f1 = media.frame_interval(src, t, pr.duration_ms, FRAME_SPAN_MS)
                 ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
                               artifact_sha256=fsha, kind="frame", inspection="sampled", uri=f"/v1/media/{fsha}",
-                              extractor_version=media.EXTRACTOR_VERSION, trace_id=res.trace["trace_id"], start_ms=t,
-                              end_ms=min(t + FRAME_SPAN_MS, pr.duration_ms))
+                              extractor_version=media.EXTRACTOR_VERSION, trace_id=res.trace["trace_id"],
+                              start_ms=f0, end_ms=f1)
                 add_evidence(ev, role="target", label=f"shot {i + 1} ({role}) @ {t / 1000:.2f}s", media_type="image/png")
                 evs.append(ev.evidence_id)
         if bad(res):
@@ -935,10 +1011,11 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
     if not ev_ids:
         k0 = keys[0]
         fsha = store.put_file(paths[k0.label], media_type="image/png")
+        f0, f1 = media.frame_interval(src, k0.t_ms, pr.duration_ms, FRAME_SPAN_MS)
         ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256, artifact_sha256=fsha,
                       kind="frame", inspection="sampled", uri=f"/v1/media/{fsha}",
                       extractor_version=media.EXTRACTOR_VERSION, trace_id=(row["trace_ids"] or ["none"])[-1],
-                      start_ms=k0.t_ms, end_ms=min(k0.t_ms + FRAME_SPAN_MS, pr.duration_ms))
+                      start_ms=f0, end_ms=f1)
         add_evidence(ev, role="target", label=f"{k0.label} @ {k0.t_ms / 1000:.2f}s", media_type="image/png")
         ev_ids = [ev.evidence_id]
     row.update(observed=("; ".join(f"{f['category']}/{f['severity']} {f['verdict']} @{f['start_ms']/1000:.1f}s"

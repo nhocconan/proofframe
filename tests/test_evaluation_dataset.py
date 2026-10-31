@@ -280,3 +280,50 @@ def test_single_baseline_retains_shared_adjudications(tmp_path):
         rewrite_labels(tmp_path, case, adjudications={"f": "false_positive"})
     save_manifest(path, manifest)
     assert evaluate_dataset(path)["baselines"]["B2"]["aggregate"]["confirmed"]["fp"] == 2
+
+
+# --- probe benchmark manifest (hashes + labels only; media stays outside Git) ---
+import json as _json
+from pathlib import Path as _Path
+
+from proofframe import probe_manifest as _pm
+
+PROBE = _Path(__file__).resolve().parents[1] / "examples/evaluation_dataset/probe-2026-10-31.manifest.json"
+
+
+def test_probe_manifest_is_valid_and_splits_i2v_from_t2v_by_reference_presence():
+    m = _pm.load(PROBE)
+    assert _pm.validate(m) == []
+    i2v = [c for c in m["clips"] if c["reference_still_sha256"]]
+    t2v = [c for c in m["clips"] if not c["reference_still_sha256"]]
+    assert (len(i2v), len(t2v)) == (8, 9)
+    assert {c["generator"]["mode"] for c in i2v} == {"i2v"} and {c["generator"]["mode"] for c in t2v} == {"t2v"}
+    assert "continuity benchmark" in m["not_a"] and m["kind"].startswith("i2v-fidelity")
+
+
+def test_probe_manifest_carries_no_media_and_no_brand_names():
+    raw = PROBE.read_text(encoding="utf-8")
+    assert "FWD" not in raw and ".mp4\"" in raw  # names files, embeds none
+    assert len(raw) < 60_000
+
+
+def test_probe_manifest_validate_rejects_label_source_drift_and_reference_mixups():
+    m = _json.loads(PROBE.read_text())
+    m["clips"][0]["label_source"] = "agent_draft"
+    m["clips"][1]["reference_still_sha256"] = None  # an i2v clip without reference
+    errors = _pm.validate(m)
+    assert any("label_source" in e for e in errors) and any("reference" in e for e in errors)
+
+
+def test_probe_media_verification_detects_changed_and_missing_files(tmp_path):
+    import hashlib
+    clip = tmp_path / "a.mp4"
+    clip.write_bytes(b"x")
+    still = tmp_path / "still.png"
+    still.write_bytes(b"s")
+    m = {"reference_still": {"file": "still.png", "sha256": hashlib.sha256(b"s").hexdigest()},
+         "clips": [{"file": "a.mp4", "sha256": hashlib.sha256(b"x").hexdigest()},
+                   {"file": "b.mp4", "sha256": "0" * 64}]}
+    assert _pm.verify_media(m, tmp_path) == ["missing: b.mp4"]
+    clip.write_bytes(b"changed")
+    assert "sha256 mismatch: a.mp4" in _pm.verify_media(m, tmp_path)

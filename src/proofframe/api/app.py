@@ -49,6 +49,30 @@ CAPABILITIES: dict[str, Any] = {
         "muse-voice-transcribe-1.0": {"endpoint": "/asr/transcribe", "granularity": "turn-level",
                                       "word_timestamps": False},
     },
+    # Vendor data handling as read from vendor documents (URL + date). Not legal advice; re-read before a client.
+    "data_handling": {
+        "meta_muse_spark_standard": {
+            "training": "none: \"In Standard mode, your content ... is not used to train Meta models.\"",
+            "retention": "uploaded files persist until deleted (\"don't expire\"); ProofFrame sends DELETE "
+                         "/v1/files/{file_id} after every video call and records the outcome in the trace "
+                         "(`upload_deleted`); request/response log retention: not found in the docs",
+            "sources": ["https://dev.meta.ai/docs/models", "https://dev.meta.ai/docs/file-handling"],
+            "read_on": "2026-10-31"},
+        "meta_muse_voice_transcribe": {
+            "training": "none in Standard mode; zero data retention documented for this endpoint only",
+            "sources": ["https://dev.meta.ai/docs/speech-to-text", "https://dev.meta.ai/docs/pricing-rate-limits"],
+            "read_on": "2026-10-31"},
+        "elevenlabs_scribe_v2": {
+            "training": "non-Enterprise: may train unless the workspace toggle \"Improve the models for everyone\" "
+                        "is off (Enterprise: not trained by default); this deployment has not confirmed the toggle",
+            "retention": "zero-retention mode (enable_logging=false) is Enterprise-only; API retention period "
+                         "not found in the docs. Optional provider: disabled when ELEVENLABS_API_KEY is unset, "
+                         "then dialogue checks run on Meta only with an explicit single-provider limitation",
+            "sources": ["https://elevenlabs.io/docs/capabilities/speech-to-text",
+                        "https://elevenlabs.io/docs/api-reference/speech-to-text/convert",
+                        "https://elevenlabs.io/terms-of-use", "https://elevenlabs.io/privacy-policy"],
+            "read_on": "2026-10-31"},
+    },
     "not_established": ["detector accuracy", "timestamp precision", "SAM recall", "ASR accuracy on real speech"],
 }
 
@@ -320,18 +344,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if not assets or not all(_SHA.match(a["sha256"]) for a in assets):
                 raise ValueError
             if video_only:
-                if "contract_sha256" in body or len(assets) != 1:
+                if ("contract_sha256" in body or len(assets) not in (1, 2)
+                        or len({a["asset_id"] for a in assets}) != len(assets)):
                     raise ValueError
                 with Session() as db:
-                    av = db.scalar(select(AssetVersion).where(
-                        AssetVersion.tenant_id == tenant,
-                        AssetVersion.asset_id == assets[0]["asset_id"],
-                        AssetVersion.sha256 == assets[0]["sha256"]))
-                if av is None or av.media_type != "video":
+                    rows = [db.scalar(select(AssetVersion).where(
+                        AssetVersion.tenant_id == tenant, AssetVersion.asset_id == a["asset_id"],
+                        AssetVersion.sha256 == a["sha256"])) for a in assets]
+                if any(r is None for r in rows):
                     raise ValueError
+                videos = [r for r in rows if r.media_type == "video"]
+                stills = [r for r in rows if r.media_type == "image"]
+                if len(videos) != 1 or len(stills) != len(rows) - 1:
+                    raise ValueError  # one video, plus at most one image reference
+                av = videos[0]
                 auto_body = build_auto_contract(av.asset_id, {
                     "sha256": av.sha256, "duration_ms": av.duration_ms, "has_audio": av.has_audio,
-                }, tenant)
+                }, tenant, reference=({"asset_id": stills[0].asset_id, "sha256": stills[0].sha256}
+                                      if stills else None))
                 auto_model = Contract.model_validate(auto_body)
                 csha = fingerprint(auto_model)
                 _store_contract(tenant, auto_model.contract_id, auto_model.revision, csha, auto_body)
@@ -345,7 +375,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             mode = body.get("run_mode", "live")
             prev = body.get("previous_run_id")
         except (KeyError, TypeError, ValueError):
-            detail = ("body needs mode=video_only, one video asset[{asset_id,sha256}], run_mode"
+            detail = ("body needs mode=video_only, one video asset and optionally one image reference "
+                      "asset[{asset_id,sha256}], run_mode"
                       if video_only else
                       "body needs contract_sha256, assets[{asset_id,sha256}], run_mode")
             raise HTTPException(422, detail)

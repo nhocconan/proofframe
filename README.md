@@ -9,6 +9,111 @@ verify stays visibly unresolved. It is built on Meta's Muse Spark multimodal mod
 > Meta API calls (see [evidence](#what-works-today-measured)). Detection quality has **not** been benchmarked;
 > nothing here is production-qualified yet. See [limitations](#limitations).
 
+
+## Headline result: Vietnamese dialogue, two independent ASRs
+
+ProofFrame checks that the dialogue in a rendered cut still matches the locked script. On one real Vietnamese
+film workprint (13 locked lines; footage private, not in this repository; full rows in
+[`docs/RUN_HISTORY.md`](docs/RUN_HISTORY.md)):
+
+| Run | Providers | PASS / FAIL / UNCERTAIN | Cost | What it showed |
+|---|---|---|---|---|
+| run-272d2c40 | Meta ASR only (two passes) | 5 / **4** / 4 | $0.0068 | all 4 FAILs adjudicated as ASR or comparator artifacts (digit rendering, segmentation echo): false alarms |
+| run-d10a4fe1 | Meta + ElevenLabs Scribe v2, provider-level voting | 8 / **1** / 4 | $0.0110 | the 1 remaining FAIL (first word "hội" missing at an edit boundary) was heard by both independent ASRs, with word timestamps |
+| run-cf6495aa | same, after the film team fixed the trim | 10 / **0** / 3 | $0.0110 | the corrected cut verifies; the catch, fix, re-verify loop closed |
+
+What this supports: requiring two independent providers to agree before a FAIL removed the 4 false FAILs on
+this clip and kept the one real defect. What it does not: it is one clip, 13 lines, adjudicated by the film
+team and the authors, not a benchmark; 3 lines stay UNCERTAIN; Scribe is a second vendor with its own data
+terms (see [`/v1/capabilities`](#data-handling)); without an ElevenLabs key the check falls back to Meta only
+and says so in the report.
+
+## Measured on the probe clip set (deterministic checks, zero model cost)
+
+Set: 17 synthetic clips from 10 video-generation models, frozen as hashes plus labels in
+[`examples/evaluation_dataset/probe-2026-10-31.manifest.json`](examples/evaluation_dataset/probe-2026-10-31.manifest.json)
+(media outside Git; `scripts/verify_probe_manifest.py` re-hashes it). **It is a single-shot i2v-fidelity and
+unplanned-change negative-control set (8 image-to-video clips against one approved still, 9 text-to-video clips
+with no reference). It is not a continuity benchmark** and says nothing about the cross-shot audit.
+Labels are a model reviewer's ("human-adjudicated (Fable review 2026-10-31)" in the manifest) and a second human pass is still open.
+
+Checks (`motion_mean_abs_diff`, `motion_max_step`, `global_motion_px`, run through the normal pipeline, 0 USD,
+17 clips, 0 NOT_CHECKED). Thresholds were fixed before the first run; they come from a band the reviewer proposed
+after looking at the same clips, so **the result is in-sample**.
+
+| Defect class (i2v clips) | Labelled | Flagged correctly | False flags on i2v | Precision | Note |
+|---|---|---|---|---|---|
+| near-static ("a still sold as video", first-to-last change < 3) | 2 | 2 | 1 (grok-1.5, 2.88 vs 3) | 2/3 | threshold edge on a 1 s clip |
+| uncommanded large motion (first-to-last > 40 or step > 25) | 1 | 1 | 0 | 1/1 | |
+| camera moved when "camera holds" (> 20 px at 240 px width) | 4 | 4 | 0 | 4/4 | push-in, pull-back, reframe |
+| **All three, i2v** | **7** | **7** | **1** | **7/8 = 0.875 (n = 8 clips)** | recall 7/7 |
+| same checks on the 9 t2v clips | not adjudicated | 6 clips flagged by the motion band | unknown | **unknown** | prompts asked for a pan; camera check not applied |
+
+Not detected, by construction: new props (Omni's phone, Wan's monitor and books), re-staged sets, and the one-frame
+smear in HappyHorse (that clip is caught only because it also moves too much). The result file is
+[`validation/runs/probe-2026-10-31-deterministic.json`](validation/runs/probe-2026-10-31-deterministic.json); reproduce with
+`python scripts/run_probe_deterministic.py <media_dir>`. One clip (grok-lite t2v) carries a disputed
+artifact label: the reviewer saw none, a frame check found a split picture with a duplicated mug.
+
+### Model-based scan on the same 17 clips (paid, run once, 2026-10-31)
+
+`proofframe verify --video-only` per clip, Meta `muse-spark-1.3`, per-run cap $0.25, no prompt or threshold changed before
+scoring. **Cost: $0.2397 in total for 17 runs** (list-price estimate from the reports; $0.0078-$0.0202 per clip, far below the
+$0.124/clip the plan allowed because 1-5 s clips get one hunt pass and at most one frame grid). Scored one-to-one by
+`scripts/score_probe_model_scan.py`; result in [`validation/runs/probe-2026-10-31-model-scan.json`](validation/runs/probe-2026-10-31-model-scan.json).
+
+| Label class (clip-level, reviewer's labels) | Labelled | Model scan caught | Model scan false flags | Deterministic checks caught |
+|---|---|---|---|---|
+| generation artifact (fail or minor) | 4 | **0** | 0 | 0 (HappyHorse trips the motion band for another reason) |
+| new props vs the approved still | 3 | **0** | 0 | 0 |
+| scene changed | 3 | **0** | 0 | 0 |
+
+The model scan raised **no finding on any clip**: 13 clips PASS on both audits, 4 clips (the four 1.04 s Grok clips) ERROR
+on the artifact scan. Recall on this set is 0 of 10 labelled defects, precision is undefined (no flags), and the n is 17
+single-shot clips with a model reviewer's labels, scored in-sample. Two limits make "caught 0" less damning than it looks,
+and neither changes the number: `--video-only` gives the continuity pass no reference still, so new props and re-staging
+are not testable in this mode (the clip is the only evidence); and the scan is built for cross-shot and within-shot defects
+in longer film, not 2-5 s single shots. A reference-image check mode is the thing this run says is missing.
+
+Defect found by the run: clips shorter than the artifact scan's 3-4 s frame grid (all four 1.04 s clips) got no frame
+evidence and ended ERROR (fails closed). Fixed afterwards (grid shrinks to first/middle/last inside the video stream).
+
+### Second paid run after the fixes (v2, 2026-10-31)
+
+Three changes, all made after v1 was scored and **evaluated on the same 17 clips, so v2 is in-sample**: (1) the short-clip
+grid fix; (2) the continuity audit no longer reports PASS when it compared 0 shot pairs (single-shot clips are
+`NOT_APPLICABLE` under an exclusion written into the auto-contract before the run); (3) a new `reference-match` check:
+`--video-only --reference still.png` sends the still plus first/middle/last frames and asks for new props, missing props
+and setting changes. Findings go to REVIEW, never FAIL (one model family). The scorer was changed before the run so a
+check that did not run (ERROR, NOT_CHECKED, 0 shot pairs) leaves the recall denominator instead of counting as a miss.
+Same manifest (sha256 `3df16b52…`), same `muse-spark-1.3`, per-run cap $0.70, code at commit f5de35d. **Cost: $0.2829 for 17 runs.**
+Result in [`validation/runs/probe-2026-10-31-model-scan-v2.json`](validation/runs/probe-2026-10-31-model-scan-v2.json).
+
+| Label class | v1 caught / checked / labelled | v2 caught / checked / labelled | v2 false flags |
+|---|---|---|---|
+| generation artifact | 0 / 4 / 4 | 0 / 4 / 4 | 0 |
+| new props vs the still | 0 / 0 / 3 | **1 / 3 / 3** | 0 |
+| scene changed vs the still | 0 / 0 / 3 | 0 / 3 / 3 | 0 |
+
+- The catch: omni i2v, "smartphone held in man's hand, not visible in REF", 1.5-3.0 s (the labelled pen-to-phone swap).
+- A miss we looked at: wan3 i2v. A monitor enters frame as the camera pans right, in a region outside the still's
+  borders. The prompt tells the model to ignore framing differences, so whether that counts as a new prop is ambiguous.
+  The prompt was not changed after seeing this.
+- The artifact scan still raises nothing on the 4 labelled clips (0 candidates, so the adjudicator never ran). On
+  1-5 s single shots it is a recall miss at the hunt/grid stage, not over-rejection.
+- The disputed grok-lite t2v clip (a sharp middle band between two blurred bands, a second mug in the top band) passed
+  the artifact scan in v2 (v1: ERROR, no frames); a frame sheet for human labelling is in the operator's private notes.
+- 1 clip (grok-1.5 t2v, 1.04 s) still ended gen-artifacts ERROR: a hunt candidate at 1.0 s was padded to 1.2 s, past the 1.04 s clip end. Fixed afterwards;
+  not re-run.
+
+### Data handling
+
+`/v1/capabilities` lists, per provider, what the vendor documents about training and retention, with the URL
+and the date read (2026-10-31). Meta Standard mode does not train on content; uploaded files persist until
+deleted, so ProofFrame deletes every video it uploads after the call and records the outcome in the trace.
+ElevenLabs may train on non-Enterprise content unless the workspace toggle is off, and zero retention is
+Enterprise-only; the toggle state of this deployment is not confirmed.
+
 ---
 
 ## Why
@@ -46,12 +151,13 @@ All numbers below come from live runs recorded in [`docs/BUILD_STATUS.md`](docs/
 | Cross-shot continuity audit | On a 60 s AI-generated short (13 shots): caught a boombox shrinking to hand size between scenes, its design changing, and a watch appearing/disappearing between consecutive shots; **4–5 of 8** labelled must-catch defects surfaced per full run (incl. the artifact scan), **0** false FAIL on real live-action footage — see [evaluation](#evaluation) |
 | Long video | 2-minute clip, timestamps in minute 2 mapped correctly (**$0.076**). 5-minute files: upload, seek and full pipeline verified without paid calls. A pre-run cost plan shrinks audits to the remaining configured budget (5-min film, full contract: est. $2.06; not yet run live) |
 | Budget stop | Owner clip with the run cap lowered to $0.30: spent $0.259; both audits UNCERTAIN ("18 of 27 calls not made") instead of being discarded, never PASS. Keeping a confirmed FAIL through a budget stop is covered by tests only |
+| Deterministic motion and camera checks | Zero model cost: first-to-last and per-step frame difference, camera move in px, peak-difference frames added to the artifact-scan grid, every sample time clamped to the video stream (fixes the missing-frame crash when audio outlasts picture). Numbers on the probe set above |
 | Evidence UI | Clicking a finding seeks the player into the evidence interval (Playwright, Firefox + WebKit) |
 | 2D cartoon calibration (one film, 211 s, sha256 `6298bf55…`) | Full contract (24 exact-text, 52 dialogue, 4 prop/character, both audits): **$2.10** Meta + $0.011 Scribe, 580 s. Against 17 defects from two independent blind model audits (not owner-confirmed): **1/5 majors, 1/12 minors** caught (a prop held by an ownerless hand, blind via the artifact scan; a prop disappearing, via a declared check); 2/10 of the defects that are visual at all. 3 false blocking findings (a look-alike pattern read as "nothing", an invented name spelled differently by both ASRs, a prop "scale change"), 4 unresolved. 24/24 text assertions and 44/52 dialogue lines PASS; the 7 dialogue UNCERTAINs were ASR noise |
 | Key-text coverage (`min_coverage`) | Same film, 24 text assertions with a 90 % rule: **$0.43**, 157 s; 22 PASS at 100 % of 5–16 uniform frames; 2 FAIL where the contract window started before the text was meant to appear (first readable frame 1.15 s and 1.06 s into the window), i.e. correct timing, over-strict contract |
 
-Test suite: **363 tests** (CI runs them on every push: `.github/workflows/ci.yml`) (seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
-Meta adapter failure semantics, artifact-scan, continuity-audit, dialogue/ASR voting and text-coverage rules). These test our logic, **not** video-understanding accuracy.
+Test suite: **444 tests** (419 pass and 25 Postgres-backed tests skip without a database; CI runs them on every push: `.github/workflows/ci.yml`): seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
+Meta adapter failure semantics (incl. upload deletion), dialogue/ASR voting, text-coverage rules, deterministic motion/camera checks, frame-extraction clamp, artifact-scan and continuity-audit rules. These test our logic, **not** video-understanding accuracy.
 
 ## How it works
 
@@ -166,8 +272,9 @@ measurement of any commercial continuity checker**, so we make no comparative cl
 
 ## Limitations
 
-- **No accuracy benchmark yet.** Three clips, a handful of assertions. Precision/recall, defect-escape rate and
-  comparison with a human or another model are unmeasured.
+- **No accuracy benchmark for the model-based checks yet.** Three annotated films plus the 17-clip probe set, which is
+  single-shot, synthetic and reviewer-labelled; the deterministic-check numbers above are in-sample (n = 8 i2v clips).
+  Defect-escape rate and comparison with a human or another model are unmeasured.
 - **Most recorded live runs predate the latest evaluator changes** (versions are stamped in every report); later
   changes were verified with unit tests and the specific live reruns listed in BUILD_STATUS.
 - **Sampled, not exhaustive.** 1–2 fps video passes plus a few frames per check; events shorter than the sampling
@@ -188,7 +295,7 @@ measurement of any commercial continuity checker**, so we make no comparative cl
 - **Continuity is keyframe-based.** Two keyframes per shot; changes inside a shot between keyframes, dissolves
   and contradictions between distant batches of a long film can be missed.
 - **Not yet in the pipeline:** SAM tracking (would allow measured size ratios instead of judged ones),
-  embedding similarity as a cheap pre-filter, lip sync, story-time vs edit-time, caching.
+  embedding similarity as a cheap pre-filter, lip sync, unrequested-speech detection, story-time vs edit-time, caching.
 - **Repairs:** only a deterministic FFmpeg caption-composite executor exists; generative shot regeneration is a
   typed action without an executor.
 - Single tenant, static API token; the API must stay on a private network.

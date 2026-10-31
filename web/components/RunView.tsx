@@ -56,7 +56,13 @@ const CATEGORY: Record<string, string> = {
   wardrobe: "Wardrobe changes between shots", accessory: "Accessory appears / disappears between shots",
   set: "Set or furniture changes within a scene", presence: "Person appears / vanishes without a transition",
   holder: "Object's holder contradicts the previous shot", identity: "Character looks like a different person",
+  new_prop: "Object not in the reference still", missing_prop: "Reference object missing from the clip",
+  scene_changed: "Setting differs from the reference still",
 };
+
+const scanLabel = (c: ScanCheck) =>
+  c.assertion_id === "reference-match" ? "Reference still comparison"
+    : (c.limitations ?? []).some((l) => l.includes("shot pairs")) ? "Cross-shot continuity audit" : "AI-artifact scan";
 
 const clean = (s?: string) => (s ?? "").replace(/^\[[^\]]*\]\s*/, "").trim();
 const firstSentence = (s: string, n = 160) => {
@@ -93,7 +99,7 @@ function buildItems(env: Envelope): Item[] {
         const cross = f.ref_start_ms !== undefined;
         items.push({
           key: `${c.assertion_id}#${f.candidate}`, testId: cross ? `continuity-${f.candidate}` : `finding-${f.candidate}`,
-          tone: blocking ? "block" : "review", kindLabel: cross ? "Cross-shot continuity" : "AI-artifact scan",
+          tone: blocking ? "block" : "review", kindLabel: cross ? "Cross-shot continuity" : scanLabel(c),
           title: CATEGORY[f.category] ?? f.category, time: { start_ms: f.start_ms, end_ms: f.end_ms },
           ref: cross ? { start_ms: f.ref_start_ms!, end_ms: f.ref_end_ms! } : null,
           aDesc: f.shot_a_description, bDesc: f.shot_b_description, entity: f.entity,
@@ -106,7 +112,7 @@ function buildItems(env: Envelope): Item[] {
         items.push(assertionItem(c, env)); // e.g. scan ERROR / NOT_CHECKED
       }
       if (c.status === "PASS") items.push({ ...assertionItem(c, env),
-        title: (c.limitations ?? []).some((l) => l.includes("shot pairs")) ? "Cross-shot continuity audit" : "AI-artifact scan",
+        title: scanLabel(c),
         seen: "nothing survived review" });
       continue;
     }

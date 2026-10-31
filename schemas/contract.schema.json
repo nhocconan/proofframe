@@ -236,7 +236,8 @@
             "technical",
             "generation_artifact_scan",
             "cross_shot_continuity",
-            "dialogue"
+            "dialogue",
+            "reference_match"
           ],
           "title": "Kind",
           "type": "string"
@@ -258,7 +259,8 @@
             "technical",
             "anomaly_scan",
             "continuity_audit",
-            "dialogue_nfc"
+            "dialogue_nfc",
+            "reference_match"
           ],
           "title": "Comparator",
           "type": "string"
@@ -284,7 +286,10 @@
                 "freeze_duration_ms",
                 "silence_duration_ms",
                 "integrated_loudness_lufs",
-                "true_peak_dbtp"
+                "true_peak_dbtp",
+                "motion_mean_abs_diff",
+                "motion_max_step",
+                "global_motion_px"
               ],
               "type": "string"
             },

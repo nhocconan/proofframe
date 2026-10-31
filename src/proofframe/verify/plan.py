@@ -21,6 +21,7 @@ COST = {  # USD per call, measured averages (run-ee24dd80868649a4b3b1)
     "continuity_log": 0.033,
     "continuity_pair": 0.011,
     "continuity_adjudicate": 0.012,
+    "reference_match": 0.012,  # one call: reference still + first/middle/last frames (~$0.0055-0.0097 for 1-2 images)
     "asr_minute": 0.0024,
 }
 MARGIN = 1.10
@@ -29,19 +30,21 @@ CONFIRM_FRAMES = 6  # frames behind the measured "confirm" average (pipeline.MAX
 STEPS = [
     ("max_registry_pairs", 6, "long-range registry pairs 12 → 6"),
     ("max_suspicions", 16, "cross-shot adjudications capped 24 → 16"),
+    ("peak_frames", 0, "artifact-scan peak-frame sampling dropped"),
     ("grid_step_ms", 3000, "artifact-scan frame grid every 2 s → 3 s"),
     ("max_registry_pairs", 0, "long-range registry pairs dropped (adjacent and insert pairs kept)"),
     ("max_suspicions", 10, "cross-shot adjudications capped 16 → 10"),
     ("grid_step_ms", 4000, "artifact-scan frame grid every 3 s → 4 s"),
     ("max_candidates", 4, "artifact-scan adjudications capped 6 → 4"),
 ]
-SCAN_KNOBS = {"grid_step_ms", "max_candidates"}
+SCAN_KNOBS = {"grid_step_ms", "max_candidates", "peak_frames"}
 
 
 @dataclass
 class RunPlan:
     grid_step_ms: int = anomaly.GRID_STEP_MS
     max_candidates: int = anomaly.MAX_CANDIDATES
+    peak_frames: int = anomaly.PEAK_FRAMES
     max_registry_pairs: int = continuity.MAX_REGISTRY_PAIRS
     max_suspicions: int = continuity.MAX_SUSPICIONS
     full_estimate_usd: float = 0.0
@@ -75,6 +78,7 @@ class Workload:
     continuity_shots: list[list[tuple[int, int]]] = field(default_factory=list)  # one entry per audit
     asr_minutes: list[int] = field(default_factory=list)  # one entry per transcription pass
     coverage_frames: list[int] = field(default_factory=list)  # grid size of each min_coverage assertion
+    reference_checks: int = 0                                     # reference-still comparisons (one call each)
 
 
 def _minutes(span_ms: int) -> int:
@@ -87,12 +91,15 @@ def estimate(w: Workload, p: RunPlan) -> float:
     total += sum(m * c["asr_minute"] for m in w.asr_minutes)
     # a coverage grid confirms up to 16 frames instead of ~6: scale the confirmation by frame count
     total += sum(max(0, n - CONFIRM_FRAMES) / CONFIRM_FRAMES * c["confirm"] for n in w.coverage_frames)
+    total += w.reference_checks * c["reference_match"]
     for span in w.scan_spans_ms:
-        grid = max(1, span // p.grid_step_ms)
+        grid = max(1, span // p.grid_step_ms) + p.peak_frames
         total += _minutes(span) * c["hunt_minute"] + -(-grid // anomaly.GRID_BATCH) * c["grid"]
         total += p.max_candidates * c["scan_adjudicate"]
     for shots in w.continuity_shots:
         n = len(shots)
+        if n < 2:
+            continue  # a single continuous shot has no cross-shot pairs: the audit makes no model call
         keys = continuity.plan_keyframes(shots)
         inserts = sum(1 for i in range(1, n - 1) if shots[i][1] - shots[i][0] <= continuity.INSERT_MAX_MS)
         total += len(continuity.batches(keys)) * c["continuity_log"]

@@ -124,3 +124,11 @@ def test_tenant_filter(client, engine, queued_run):
     assert client.get(f"/v1/contracts/{csha}", headers=AUTH).status_code == 404
     assert client.get("/v1/media/" + "d" * 64, headers=AUTH).status_code == 404  # other tenant's blob
     assert post_run(client, csha, asha, key="zz").status_code == 422  # contract not visible to this tenant
+
+
+def test_capabilities_list_vendor_data_handling_with_sources():
+    from proofframe.api.app import CAPABILITIES
+    dh = CAPABILITIES["data_handling"]
+    assert {"meta_muse_spark_standard", "elevenlabs_scribe_v2"} <= set(dh)
+    assert all(v["sources"] and v["read_on"] == "2026-10-31" for v in dh.values())
+    assert "Enterprise" in dh["elevenlabs_scribe_v2"]["retention"]

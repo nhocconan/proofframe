@@ -264,6 +264,57 @@ Verification in this workspace:
 - s04b FAIL is now corroborated by two independent providers + word timestamps: the word "hội" is absent from the workprint audio at the 15.83s edit boundary (film team found it present in the source take -> suspected edit trim). Referred to the film team.
 - Known follow-ups: pad dialogue scopes (~1s tail) for lines finishing over a cut (s10 truncation class); vầy/vậy dialect rendering fold (cosmetic; does not change verdicts while another provider differs).
 
+## Deterministic motion/camera checks and video-stream clamp (2026-10-31, branch hackathon-evidence)
+
+- New technical metrics `motion_mean_abs_diff`, `motion_max_step`, `global_motion_px` (`verify/motion.py`; pure Python over ffmpeg grey frames at 4 fps; zero model cost; evidence `inspection: sampled`; cannot-run cases are NOT_CHECKED). Contract schema regenerated.
+- `media.extract_frame` clamps every sample time to the first video stream's duration (container duration is longer when audio outlasts picture) and fails loudly instead of leaving a missing PNG; `tests/test_media_clamp.py` fails on the previous media.py (5 failed) and passes now.
+- Artifact scan adds up to 4 peak-difference frames to the 2 s grid (`RunPlan.peak_frames`, dropped first by the budget plan).
+- Tests run in `proofframe-app:dev` (python 3.12, ffmpeg): `docker run --rm --network none -v <worktree>:/w -w /w -e PYTHONPATH=/w/src:/w proofframe-app:dev python -m pytest -q -p no:cacheprovider` — see commit message for the count.
+
+## Meta upload cleanup and vendor data-handling rows (2026-10-31)
+
+- `MetaObserver.observe_video` already deleted its upload in a bare `finally`; the failure was swallowed. It now records the outcome (`deleted | not_found | failed:<why>`) in the call trace as `upload_deleted`, and three tests assert the DELETE (success, model-call failure, failed delete). Meta file docs re-read 2026-10-31 (https://dev.meta.ai/docs/file-handling): `DELETE /v1/files/{file_id}`; uploads "don't expire"; optional `expires_after` {anchor: created_at, seconds 3600-2592000} — not used, because the multipart field encoding is not documented there.
+- `/v1/capabilities` gains `data_handling` rows (training/retention/sources/read_on) for Meta Standard, Muse Voice Transcribe and ElevenLabs Scribe v2, from the 2026-10-31 vendor reading in the Content Engine research note. ElevenLabs toggle state for this deployment is NOT confirmed.
+- pytest in `proofframe-app:dev`: 350 passed, 22 skipped (Postgres-backed API tests skip without a database).
+
+## Probe benchmark manifest (2026-10-31)
+
+- `examples/evaluation_dataset/probe-2026-10-31.manifest.json`: 17 synthetic probe clips (8 i2v against one text-free reference still, 9 t2v), sha256 + generator/settings + labels (scene_changed, new_props, camera_holds, motion_band, artifact, speech_present, identity_kept) with source "human-adjudicated (Fable review 2026-10-31)". It is an i2v-fidelity / unplanned-change negative-control set, NOT a continuity benchmark. Media stays outside Git (`~/ce-samples/2026-10-31-video-probe/` on the operator host).
+- Content check before listing: reference still viewed (no logo, no text); a mid-clip frame of each of the 17 clips viewed (no logo, no text, no client asset; omni t2v shows four generated adults). Fable's review and the judge logo/text checks also passed all 17.
+- One label dispute recorded, not resolved: grok-lite-t2v. Fable: artifact none; a frame check on 2026-10-31 shows a split picture (blurred upper band, duplicated mug). Stored as `artifact: "disputed"`.
+- `scripts/verify_probe_manifest.py <manifest> [MEDIA_DIR]` validates structure and re-hashes media. Run: manifest sha256 `9cdfeaf887a9688cb88313ae74c3e233b878060143b1afb39084b6b86787a4cd`, 17 clips, media verified (exit 0). Tests in `tests/test_evaluation_dataset.py` (37 passed).
+
+## Probe set: deterministic checks, scored (2026-10-31)
+
+- Correction: the manifest was regenerated before this run (t2v `motion_band` is now `unknown`, not `ok`, because the review gave no motion numbers for t2v). Current manifest sha256 `3df16b52826a89f7eaabb73f326447eb5cbb415b4855d1e7b34dccbd57662c1c`; `scripts/verify_probe_manifest.py` against the media directory: 17 clips, media verified.
+- Command (no network, no key, 0 USD), in `proofframe-app:dev`: `python scripts/run_probe_deterministic.py /m --out validation/runs/probe-2026-10-31-deterministic.json` with the probe folder mounted read-only at `/m`. Thresholds fixed before the first run: first-to-last >= 3 and <= 40 grey levels, max step <= 25, camera <= 20 px at 240 px width (camera check on i2v only; the t2v prompt asked for a pan).
+- Result (scored one-to-one by `proofframe.evaluation.score_findings`, confirmed track): i2v clips TP 7, FP 1, FN 0 (precision 7/8, n = 8, in-sample); near-static 2/2 caught (+1 false flag: grok-1.5 at 2.88), uncommanded motion 1/1, camera move 4/4. t2v: 6 of 9 clips exceed the 40 first-to-last band; unadjudicated, precision unknown. 0 NOT_CHECKED, 0 USD.
+- Not measured: peak-frame sampling before/after (needs the paid scan), scene_changed/new_props/artifact classes (not detectable by these checks).
+
+### Paid Meta run on the probe set (run 2026-10-31, operator-authorised)
+
+Worth it: it would give the first precision/recall of the model-based artifact scan on a labelled set (it detects props and smears, which the deterministic checks cannot) and the before/after for peak-frame sampling. Estimate from `verify/plan.py`: $0.124 per clip at the adjudication cap, 17 clips <= $2.11 plus the single-shot continuity pass (small); the research note estimated $1-2. From the repo root, with `.env` holding `META_DEV_API` and the stack up (`docker compose up -d --build db api worker web`):
+
+```bash
+mkdir -p media/probe && for f in ~/ce-samples/2026-10-31-video-probe/*/*.mp4; do cp "$f" "media/probe/$(basename "$(dirname "$f")")-$(basename "$f")"; done
+for f in media/probe/*.mp4; do id=$(basename "$f" .mp4 | tr -c 'A-Za-z0-9\n' '-'); \
+  docker compose exec -e PROOFFRAME_API_URL=http://localhost:8080 -e PROOFFRAME_MAX_RUN_COST_USD=0.25 api \
+    proofframe verify --video-only --video "$id=/media/probe/$(basename "$f")" --wait --out "/dropbox/probe-$id.json"; done
+```
+
+Check `docker compose exec ... proofframe` flags and the per-run cap variable against `docs/RUNBOOK.md` before the first clip (the cap is read by the api/worker container, so set it in `.env` or compose rather than per exec). Record the run ids in `docs/RUN_HISTORY.md`; do not tune prompts before scoring.
+
+**Result.** 17 runs, **$0.2397** total (round cap was $2.50; per-run cap $0.25 and project cap $2.50 set by environment override on `docker compose up`, verified inside the api container; `.env` never read, keys passed by `--env-file`/`env_file` path to the operator's `.env`). Run ids and per-run cost: `docs/RUN_HISTORY.md`. Model scan raised 0 findings: 13 clips PASS/PASS, 4 clips (1.04 s Grok) gen-artifacts ERROR (no frame evidence on a clip shorter than the frame grid; fails closed). Recall 0/10 labelled defects (artifact 0/4, new_props 0/3, scene_changed 0/3), 0 false flags; in-sample, reviewer labels, `--video-only` supplies no reference still. No prompt tuned.
+
+Commands (exit 0 unless noted):
+- Stack, distinct project and no host ports so the operator's `proofframe` and `pfcal` stacks were untouched: `PROOFFRAME_MAX_RUN_COST_USD=0.25 PROOFFRAME_MAX_PROJECT_COST_USD=2.50 docker compose -p pfprobe -f docker-compose.yml -f private/compose.probe.yml up -d db api worker` (override file in gitignored `private/`: `ports: !reset []`, `env_file: !override [<path to operator .env>]`, `image: proofframe-app:probe`). The first attempt used the existing `proofframe-app:dev` image, which predates `--video-only` (exit 2, `--contract` required); rebuilt from this worktree as `proofframe-app:probe`.
+- Per clip (17x, media copied to gitignored `media/probe/`): `docker exec -e PROOFFRAME_API_URL=http://localhost:8080 pfprobe-api-1 proofframe verify --video-only --video <id>=/media/probe/<file> --wait --out /dropbox/probe-<id>.json`; reports copied to gitignored `private/probe-reports/`. Cumulative cost checked after each clip against a $2.25 stop line (never close).
+- Score: `python scripts/score_probe_model_scan.py private/probe-reports --out validation/runs/probe-2026-10-31-model-scan.json` in `proofframe-app:probe` (exit 0; the first write attempt failed with a permission error, container user, rerun with `-u $(id -u)`).
+- Teardown: `docker compose -p pfprobe ... down -v` and removal of the `proofframe-app:probe` image; the `proofframe` and `pfcal` stacks were not touched.
+- pytest, `proofframe-app:dev`, `--network none`: 354 passed, 22 skipped (Postgres-backed tests), 0 failed.
+
+- Full suite on the final tree against a throwaway Postgres 16 container (`proofframe-app:dev`, `--network host`): **376 passed, 0 failed** (354 passed / 22 skipped without a database). Web code untouched, so no web typecheck.
+
 ## 2D cartoon calibration, Scribe language fix, key-text coverage (pf-verify-0.19, 2026-10-31)
 
 Branch `feat/key-text-coverage-why003-calibration`. Film: a private, unreleased 2D cartoon, 211.3 s,
@@ -308,3 +359,16 @@ labels are committed; they stayed in gitignored `media/`, `dropbox/` and the own
   test container lacking `schemas/` (not mounted); passes in the full gate.
 - Not done: ASR word timestamps are not yet used to place a coverage window (the window comes from the
   contract); object provenance across cuts (props popping in at a cut) remains the most-missed class.
+
+## Content Engine review follow-up (2026-10-31)
+
+Source: Content Engine review of this branch (items 1-8). Done in this round:
+- Item 1: short clips get first/middle/last grid frames inside the video stream; a clean PASS cites only extracted frames (1359809).
+- Item 2, diagnosis first: none of the 10 labels sat on the 4 ERROR clips; continuity compared 0 shot pairs on every clip (vacuous PASS); no model call received the reference still. Scorer now reports caught/checked/labelled and drops not-run checks from the denominator (e70b7d7). New `reference-match` check, `--video-only --reference` (f5de35d). Single-shot continuity is NOT_APPLICABLE under an exclusion approved in the auto-contract, NOT_CHECKED without one, never PASS.
+- Paid v2 run: 17 clips, $0.2829, per-run cap $0.70, project cap $2.50, manifest sha256 verified. new_props 1/3/3, scene_changed 0/3/3, artifact 0/4/4, 0 false flags. In-sample: the method was built after seeing v1. Details: README, RUN_HISTORY.
+- Bugs found by v2, fixed afterwards and not re-run on paid models: a hunt candidate padded past the clip end (evidence interval start > end); decoded QC scoped to the container instead of the stream (qc-black/freeze ERROR 12 → 0, silence/loudness/true-peak 6 → 1 over the 17 clips, measured with no model). The remaining 1 is heygen's AAC timestamp gap (51 ms), left failing closed.
+- Not done: item 3 (second vendor) skipped for the hackathon by the operator; item 4 human labels pending (frame sheet for grok-lite t2v prepared in `private/labels/`); item 5 needs a held-out clip set; item 6 threshold left at 3 (scaling it by duration on these clips would be tuning on the test set); item 7 needs a screen recording; item 8 ElevenLabs training toggle unconfirmed (`/v1/capabilities` says so).
+- Tests: `docker run --rm --network none -v $PWD:/w -w /w -e PYTHONPATH=/w/src:/w proofframe-app:dev python -m pytest -q -p no:cacheprovider` → 406 passed, 25 skipped (Postgres-backed), 0 failed. Web: `npx tsc --noEmit` in `proofframe-web:dev` → exit 0.
+- Expect on the next run: about 5 former audio-QC ERRORs on the quiet Grok and flux3 clips now measure, so advisory `qc-loudness` FAILs (at_least -30 LUFS) appear. That is a measurement, not a regression.
+- Deterministic probe re-run on 901f279 (no model, 0 USD): identical to `validation/runs/probe-2026-10-31-deterministic.json` except heygen t2v, whose end moves 5167 → 5250 ms (stream end now includes its 83 ms start offset; values change ≤ 0.16, statuses unchanged; t2v is unscored). README table unaffected.
+- Auto-contract id now carries a digest of the generated checks (`auto-<media>-t<digest>`): a clip scanned under an older template gets a new id instead of a 409 on the running stack. Tests: 408 passed, 25 skipped.

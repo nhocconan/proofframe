@@ -2,6 +2,7 @@
 
   proofframe doctor
   proofframe verify --contract demo/contract.json --video shot-01=/media/x.mp4 [--assertions a,b] [--wait]
+  proofframe verify --video-only --video clip=/media/x.mp4 [--reference still.png] [--wait]
   proofframe report RUN_ID [--out file.json]
   proofframe export-repair RUN_ID --out repair-request.json
   proofframe reverify --receipt repair-receipt.json [--wait]
@@ -71,6 +72,9 @@ def main(argv: list[str] | None = None) -> None:
                    help="scan one video for generic defects without an approved brief")
     v.add_argument("--video", action="append", help="asset_id=/path/to.mp4")
     v.add_argument("--audio", action="append", help="asset_id=/path/to.wav")
+    v.add_argument("--reference", type=Path,
+                   help="with --video-only: the still the clip was generated from (image-to-video); adds the "
+                        "reference-match check")
     v.add_argument("--assertions")
     v.add_argument("--wait", action="store_true")
     v.add_argument("--out", type=Path)
@@ -91,6 +95,10 @@ def main(argv: list[str] | None = None) -> None:
         p.error("verify requires exactly one of --contract or --video-only")
     if a.cmd == "verify" and a.video_only and (len(a.video or []) != 1 or a.audio):
         p.error("--video-only requires exactly one --video and does not accept --audio")
+    if a.cmd == "verify" and a.reference and not a.video_only:
+        p.error("--reference is only supported with --video-only")
+    if a.cmd == "verify" and a.reference and not a.reference.is_file():
+        p.error(f"--reference {a.reference} is not a file")
 
     with _c() as c:
         if a.cmd == "doctor":
@@ -110,6 +118,11 @@ def main(argv: list[str] | None = None) -> None:
                 av = upload(c, aid, Path(path), media_type=media_type)
                 print(f"asset {aid} rev {av['revision']} sha256 {av['sha256']} {av.get('duration_ms')}ms")
                 assets.append({"asset_id": aid, "sha256": av["sha256"]})
+            if a.reference:
+                rid = f"{assets[0]['asset_id']}-reference"
+                rv_ = upload(c, rid, a.reference, media_type="image")
+                print(f"asset {rid} (reference) rev {rv_['revision']} sha256 {rv_['sha256']}")
+                assets.append({"asset_id": rid, "sha256": rv_["sha256"]})
             body = ({"mode": "video_only", "assets": assets, "run_mode": "live"}
                     if a.video_only else
                     {"contract_sha256": ck["contract_sha256"], "assets": assets, "run_mode": "live"})

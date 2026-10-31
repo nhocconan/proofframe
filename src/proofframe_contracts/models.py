@@ -92,14 +92,15 @@ class ObservationSpec(Record):
     The observer only receives `subject`, `attribute` and `vocabulary`; `expected`
     stays in deterministic comparison code. `technical` checks never call a model.
     """
-    kind: Literal["visual_attribute", "on_screen_text", "technical", "generation_artifact_scan", "cross_shot_continuity", "dialogue"]
+    kind: Literal["visual_attribute", "on_screen_text", "technical", "generation_artifact_scan", "cross_shot_continuity", "dialogue", "reference_match"]
     subject: Nonempty
     attribute: Nonempty
-    comparator: Literal["category_equals", "exact_text_nfc", "technical", "anomaly_scan", "continuity_audit", "dialogue_nfc"]
+    comparator: Literal["category_equals", "exact_text_nfc", "technical", "anomaly_scan", "continuity_audit", "dialogue_nfc", "reference_match"]
     vocabulary: tuple[Nonempty, ...] = ()
     technical_metric: Literal["duration_ms", "has_audio", "width", "height",
                               "black_duration_ms", "freeze_duration_ms", "silence_duration_ms",
-                              "integrated_loudness_lufs", "true_peak_dbtp"] | None = None
+                              "integrated_loudness_lufs", "true_peak_dbtp",
+                              "motion_mean_abs_diff", "motion_max_step", "global_motion_px"] | None = None
     tolerance: int | float = Field(default=0, ge=0)
     technical_relation: Literal["equals", "at_most", "at_least"] = "equals"
     # throughout: the attribute must hold in every clear sampled frame of the scope (state).
@@ -143,6 +144,8 @@ class ObservationSpec(Record):
             raise ValueError("continuity kind and comparator must agree")
         if (self.kind == "dialogue") != (self.comparator == "dialogue_nfc"):
             raise ValueError("dialogue kind and comparator must agree")
+        if (self.kind == "reference_match") != (self.comparator == "reference_match"):
+            raise ValueError("reference-match kind and comparator must agree")
         if self.kind == "technical" and self.technical_metric is None:
             raise ValueError("technical checks need a metric")
         if self.technical_relation != "equals" and (

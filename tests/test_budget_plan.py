@@ -35,7 +35,7 @@ def test_long_film_plan_shrinks_in_order_and_records_reductions():
     assert p.reductions[0].startswith("long-range registry pairs 12")
     assert p.fits == (p.estimate_usd <= 2.0)
     assert [len(p.limits("scan")), len(p.limits("continuity"))] == [0, 1]  # one line per affected stage
-    assert p.limits("continuity")[0].startswith("budget plan (est. $2.06 full vs $2.00 available)")
+    assert p.limits("continuity")[0].startswith("budget plan (est. $2.07 full vs $2.00 available)")
 
 
 def test_reductions_skip_absent_stages():

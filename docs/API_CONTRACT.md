@@ -31,6 +31,25 @@ Auth: header `Authorization: Bearer <PROOFFRAME_API_TOKEN>` on every route excep
 
 Execution status (`Run.status`) ≠ check status ≠ release decision. A `succeeded` run can BLOCK.
 
+### Video-only mode and the optional reference still
+
+`POST /v1/verifications` with `{"mode":"video_only", "assets":[...], "run_mode":"live"}` (no `contract_sha256`) builds a
+generic scan contract server-side. `assets` holds exactly one `video` asset and, optionally, one `image` asset
+(upload it with `media_type=image`; any other combination is 422). CLI:
+`proofframe verify --video-only --video clip=/media/clip.mp4 --reference /media/still.png --wait`
+(uploads the still as asset `clip-reference`).
+
+The image becomes a hash-bound `canonical_reference` slot and the contract gains one blocking check,
+`reference-match` (`observation.kind = "reference_match"`). Without a reference that check does not exist.
+One model call compares the still (`REF`) with the clip's first / middle / last frames and reports
+`new_prop`, `missing_prop` or `scene_changed`. A report is a review item (`UNCERTAIN`, `verdict: "review"`, severity
+carried, cited clip frames), never `FAIL`: one model family agreeing with itself is not proof. A clean answer is
+`PASS` citing the three inspected frames plus the reference; a provider error or malformed answer is `ERROR`; a
+budget stop is `NOT_CHECKED`. Cost planner entry: `COST["reference_match"]`.
+
+The continuity audit compares shots only. A clip with one detected shot reports `NOT_CHECKED` ("0 shot pairs
+compared"), not `PASS`; the run then stays `REVIEW` because the check is blocking.
+
 ## ReportEnvelope
 
 ```jsonc
