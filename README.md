@@ -272,7 +272,7 @@ measurement of any commercial continuity checker**, so we make no comparative cl
 
 ## Limitations
 
-- **No accuracy benchmark for the model-based checks yet.** Three annotated films plus the 17-clip probe set, which is
+- **No accuracy benchmark for the model-based checks yet.** Two annotated films, one 2D cartoon film labelled by two blind model audits (not owner-confirmed), and the 17-clip probe set, which is
   single-shot, synthetic and reviewer-labelled; the deterministic-check numbers above are in-sample (n = 8 i2v clips).
   Defect-escape rate and comparison with a human or another model are unmeasured.
 - **Most recorded live runs predate the latest evaluator changes** (versions are stamped in every report); later
