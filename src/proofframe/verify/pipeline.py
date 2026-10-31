@@ -98,6 +98,16 @@ def _dense_grid(lo: int, hi: int) -> list[int]:
     return [int(lo + (hi - lo) * (i + 0.5) / n) for i in range(n)]
 
 
+def _scan_grid(src: Path, lo: int, hi: int, step_ms: int, min_frames: int = 3) -> list[int]:
+    """Stage-2 sample times: every `step_ms` (offset half a step), shrinking on short clips to at least
+    first/middle/last, all clamped into the decoded video stream (not the longer container)."""
+    grid = list(range(lo + step_ms // 2, hi, step_ms))
+    if len(grid) < min_frames:
+        last = max(lo, min(hi - 1, media.clamp_to_video(src, hi)))
+        grid = [lo + (last - lo) * i // (min_frames - 1) for i in range(min_frames)]
+    return sorted({media.clamp_to_video(src, t) for t in grid})
+
+
 def _frame_times(segments: list[dict], lo: int, hi: int) -> tuple[list[int], str]:
     """Choose frame times from model-suggested segments (hints), clamped to the approved scope."""
     picks: list[int] = []
@@ -668,7 +678,7 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
 
     # stage 2: independent frame-grid checklist (batches run in parallel)
     from concurrent.futures import ThreadPoolExecutor
-    grid = list(range(lo + plan.grid_step_ms // 2, hi, plan.grid_step_ms))
+    grid = _scan_grid(src, lo, hi, plan.grid_step_ms)
     peak_note = []
     if plan.peak_frames > 0:
         try:  # sub-second events fall between a 2 s grid: add the largest decoded changes (no model cost)
@@ -757,8 +767,12 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
     ev_ids = [e for f in (key if status != "PASS" else findings[:1]) for e in f["evidence_ids"]]
     if status == "PASS" and not ev_ids:
         # evidence for a clean scan = the grid frames that were inspected
+        # only frames that were actually extracted can be cited
         ev_ids = [frame_ev(t, work / f"{aid}-G{i + 1}.png", f"G{i + 1} @ {t/1000:.1f}s (grid)", "target",
-                           row["trace_ids"][-1]).evidence_id for i, t in enumerate(grid[:3])]
+                           row["trace_ids"][-1]).evidence_id for i, t in enumerate(grid[:3])
+                  if (work / f"{aid}-G{i + 1}.png").exists()]
+        if not ev_ids:
+            status, why = "NOT_CHECKED", why + " No grid frame was extracted, so nothing was inspected."
     row.update(observed=("; ".join(f"{f['category']}/{f['severity']} {f['verdict']} @{f['start_ms']/1000:.1f}s"
                                    for f in shown) or (BUDGET_STOP_NOTE if skipped else "no surviving defects")),
                evidence_ids=ev_ids, findings=findings, rationale=why,
