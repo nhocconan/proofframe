@@ -12,7 +12,7 @@ docker compose down                                # remove containers, keep vol
 ```
 
 Secrets: the Meta key is read from `.env` at the repo root (`META_DEV_API`, gitignored) via `env_file`.
-Spend bounds live in `docker-compose.yml` (`PROOFFRAME_MAX_PROJECT_COST_USD=10`, `PROOFFRAME_MAX_RUN_COST_USD=2`).
+Spend bounds live in `docker-compose.yml` (`PROOFFRAME_MAX_PROJECT_COST_USD=100`, `PROOFFRAME_MAX_RUN_COST_USD=15` by default; both are environment-overridable).
 Check remaining budget: `curl -H "Authorization: Bearer $PROOFFRAME_API_TOKEN" 127.0.0.1:8080/v1/budget`
 (token from `.env`; without that file compose falls back to `dev-local-token`, acceptable only on loopback).
 
@@ -51,7 +51,7 @@ with a basic-auth middleware. Never route the API publicly (anyone reaching it c
 
 Cost guide (estimates from measured usage × list price): each visual check costs ≈ $0.015 per minute of its
 scope (1 fps video pass, 640 px) + ≈ $0.005 frame confirmation. A 5-minute video with 4 whole-video visual
-checks ≈ $0.35 (not yet run live — longest live run so far is 2 min); scoped checks cost far less. The $2/run cap stops a run before overspending (remaining checks
+checks ≈ $0.35 (not yet run live — longest live run so far is 2 min); scoped checks cost far less. The $15/run default cap stops a run before overspending (remaining checks
 become NOT_CHECKED, never PASS). Long videos are split into ≤60 s windows with 3 s overlap.
 
 ## Repair round trip (file-drop)
@@ -89,6 +89,24 @@ docker compose exec -e PROOFFRAME_API_URL=http://localhost:8080 api proofframe v
 `integrated_loudness_lufs` and `true_peak_dbtp` use FFmpeg metering without changing source audio. `technical_relation` is `equals` (default), `at_most` or `at_least`; tolerance accepts finite fractional values. The first audio stream is measured for at most 300 s per scope. A 0.1-unit summary has a ±0.05 rounding interval: a measurement straddling an approved boundary is UNCERTAIN. This accounts for printed precision, not calibrated instrument accuracy. Unmeasurable silence/sub-gated loudness is UNCERTAIN; absent audio or failed decoding is ERROR.
 
 Whole-programme loudness requires a whole-programme scope. Do not average LUFS from separate shots to claim programme compliance. Longer inputs require an explicitly supported full-duration implementation; these bounds do not silently split and average. Peak/loudness measurements do not prove intelligible dialogue or synchronized lips.
+
+### Dialogue against an approved script
+
+`demo/contract_dialogue_qc.json` is a template, not approved intent. For each locked script line, add one
+`kind: "dialogue"` assertion against the delivery asset, use the speaker description as `subject`, put the
+exact approved line in `expected`, and bind `scope` to that line's source-time shot/scene interval. The ASR
+request receives the scoped audio and optional `language_bias`, never the expected line. Double transcription
+is on by default; set `double_transcription: false` only when the contract deliberately accepts the weaker route.
+
+PASS means the normalized transcript matches the locked line. FAIL means two agreeing transcriptions clearly
+contradict it, with an expected-versus-heard token diff as the retake note. Empty speech recovery or materially
+disagreeing biased/unbiased passes is UNCERTAIN and therefore REVIEW, flagged as possibly unintelligible. Two
+near-identical transcripts in different declared scopes also produce REVIEW on both lines unless either assertion
+sets `allow_repeat: true`. Provider/decoding errors are ERROR and budget refusal is NOT_CHECKED; neither can PASS.
+
+Audio is extracted from the first audio stream as mono 16 kHz WAV. A dialogue scope must be explicit, within the
+asset, and no longer than the Meta file endpoint's 10-minute limit; longer scopes ERROR rather than truncate. Muse Voice evidence has turn-level
+timestamps only. This check does not establish named-speaker identity, word alignment, mouth movement, or lip sync.
 
 ### Offline evaluation and judge controls
 

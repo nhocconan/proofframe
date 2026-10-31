@@ -2,7 +2,7 @@
   "schema_version": "proofframe.report.v0.1",
   "run_id": "fixture-run",
   "run_mode": "synthetic_fixture",
-  "contract_sha256": "5bd500f6182322e407af4504b486e6172015d4cc205950c79761e44790fe71ca",
+  "contract_sha256": "c30190581d28c3d101fab1c37bfeda26b2cc158ff896d988bbfaf9a6754caad3",
   "assets": [
     {
       "asset_id": "shot-01",

@@ -101,3 +101,24 @@ def test_media_bytes_not_in_request_digest(tmp_path):
                                  "required": ["frames"], "properties": {"frames": {"type": "array"}}})
     assert r.ok and "data:image/png;base64" in json.dumps(seen["body"])
     assert "base64" not in json.dumps(r.trace)
+
+
+def test_asr_strict_response_and_budget_path(tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFFfake")
+    o, b = obs_with(lambda req: httpx.Response(200, json={"sessionId": "s", "transcript": "xin chào",
+                                                          "audioDurationMs": 1000, "turns": []}))
+    result = o.transcribe_wav(audio=wav, duration_ms=1000, language_bias=["Vietnamese"], purpose="dialogue:x")
+    assert result.ok and result.parsed["transcript"] == "xin chào" and b.settled[0][0] > 0
+
+
+@pytest.mark.parametrize("body", [{"audioDurationMs": 1000},
+                                   {"sessionId": "s", "transcript": 3, "audioDurationMs": 1000, "turns": []},
+                                   {"sessionId": "s", "transcript": "x", "audioDurationMs": 1.5,
+                                    "turns": []}])
+def test_asr_invalid_transcript_or_duration_is_error(tmp_path, body):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"RIFFfake")
+    o, _ = obs_with(lambda req: httpx.Response(200, json=body))
+    assert o.transcribe_wav(audio=wav, duration_ms=1000, language_bias=None,
+                            purpose="dialogue:x").outcome == "invalid_output"

@@ -174,3 +174,92 @@ Secret scan: gitleaks v8.21.2 over all 5 commits → no leaks; no `.env`/`privat
 - Gate 4 (Content Engine adapter, Opus comparison, evaluation table) not started. `production_best_qualified` profile not implemented — runs are `meta_hackathon` only.
 - Single tenant/static token; no TLS (loopback only). UI not tested in Chromium.
 - Seed change: `Assertion` gained optional `scope` and `observation` (fingerprints of contracts now include these fields).
+
+## Video-only auto-contract and episode campaign caps (2026-10-30)
+
+Implemented the bounded P0-1/P0-3 slice only:
+- `docker-compose.yml`: project/run defaults are environment-overridable at $100/$15; probe-spend seeding is unchanged. The Postgres ledger remains an operational counted-spend ledger, not Meta-billed lifetime truth.
+- `src/proofframe/verify/autocontract.py`, API and CLI: one ingested video can create a deterministic hash-derived contract without client-supplied intent. It contains generic artifact/continuity audits and non-blocking decoded-QC limits only; no expected-bearing visual claim is invented.
+- Media over 180 s uses deterministic 90 s scopes for the two visual audits. This reuses existing assertion windows because the API has no approved shot list at run creation; it is not scene-derived segmentation.
+- The envelope is labelled `VIDEO_ONLY_NO_BRIEF`; the existing run UI renders an eligible result as “No confirmed defects in sampled scan — nothing was checked against a brief.” The upload form remains unchanged.
+- Tests added in `tests/test_autocontract.py` for determinism/fingerprint stability, advisory status, long-media audit chunks, API run creation without a supplied contract, and CLI request/argument validation.
+
+Verification in this workspace:
+- `python3 -m py_compile src/proofframe/verify/autocontract.py src/proofframe/api/app.py src/proofframe/cli.py src/proofframe/verify/pipeline.py tests/test_autocontract.py` — passed.
+- `git diff --check` — passed.
+- `docker compose run --rm -T -v "$PWD/src:/app/src:ro" -v "$PWD/tests:/app/tests:ro" api python -m pytest -q -p no:cacheprovider` — not run: sandbox denied access to `/Users/conan/.colima/default/docker.sock` before container creation.
+- `PATH="$PWD/.venv/bin:$PATH" python -m pytest -q -p no:cacheprovider` — not run: no local pytest installation. Creating a lockfile-based environment with `UV_CACHE_DIR=/private/tmp/proofframe-uv-cache uv pip sync --python .venv/bin/python requirements.lock` failed because this sandbox cannot resolve `pypi.org`.
+- `npm --prefix web run typecheck` — not run: `tsc` is unavailable because `web/node_modules` is not installed.
+
+No live or paid provider call was made. Remaining verification risk is the unexecuted pytest/Postgres suite and web typecheck; CI or a Docker-enabled checkout must run both before merge.
+
+## Independent verification of P0-1/P0-3 (Muse, 2026-10-31)
+
+- Reviewer fixes after the Codex pass: (1) tests/test_autocontract.py imported the shared API fixtures incompletely (client/settings/engine chain) — aligned with the import block used by tests/test_api_http.py; (2) verify/autocontract.py: decoded-QC advisories are now scoped per 90 s chunk when media exceeds the detectors 300 s scope cap (previously a >300 s video-only scan would ERROR the advisories instead of measuring), with a regression test for a 486 s asset.
+- Full suite, run by the reviewer in Docker (compose run, src+tests mounted): **314 passed, 1 warning, 0 errors** (command: docker compose run --rm -T -v /Users/conan/Workspace/proofframe/src:/app/src:ro -v /Users/conan/Workspace/proofframe/tests:/app/tests:ro api python -m pytest -q -p no:cacheprovider).
+- Baseline live runs before this change (technical QC only, bash): run-b3ee03d29f6d4c369649 ELIGIBLE on a clean 60 s excerpt; run-cebe314a0de34ab5900b correctly ERROR/REVIEW on a timestamp-broken stream-copy excerpt.
+
+## Dialogue / ASR verification (P0-2, 2026-10-31)
+
+Implemented a blind scoped-audio path for `kind: dialogue`: first-stream mono 16 kHz WAV extraction,
+Muse Voice `ENDPOINTING` transcription through the existing atomic reservation/settlement ledger, strict buffered
+response validation, NFC/dash/quote comparison with token retake diffs, optional biased/unbiased agreement checks,
+and deterministic cross-scope duplicate review with `allow_repeat`. ASR evidence remains turn-level and makes no
+speaker-identity, word-alignment, mouth-motion, or lip-sync claim. `demo/contract_dialogue_qc.json` is a template,
+not approved production intent.
+
+Verification in this workspace:
+
+- Prerequisite baseline command, before P0-2 edits: `docker compose run --rm -T -v "$PWD/src:/app/src:ro" -v "$PWD/tests:/app/tests:ro" api python -m pytest -q -p no:cacheprovider` — **not run**; Docker API access failed with `permission denied` on `/Users/conan/.colima/default/docker.sock`. The preceding independent P0-1/P0-3 record above remains 314 passed, but is historical, not this run.
+- `PYTHONPATH=src:. .venv/bin/python -m py_compile src/proofframe_contracts/models.py src/proofframe/media.py src/proofframe/providers/meta.py src/proofframe/verify/dialogue.py src/proofframe/verify/plan.py src/proofframe/verify/pipeline.py tests/test_dialogue.py tests/test_meta_adapter.py` — passed.
+- Pure deterministic dialogue checks (normalized match, changed-token diff, near-empty REVIEW, duplicate similarity) via `PYTHONPATH=src .venv/bin/python` — passed.
+- Scoped FFmpeg extraction smoke (2 s stereo/48 kHz synthetic sine → 250–1250 ms mono/16 kHz WAV) — passed; ffprobe measured exactly 1000 ms with an audio stream.
+- `git diff --check` — passed.
+- `PYTHONPATH=src:. /Users/conan/.hermes/hermes-agent/venv/bin/python scripts/export_schemas_and_examples.py` — passed: `Validated 4 JSON Schemas and 10 synthetic example documents`; `schemas/contract.schema.json` was regenerated by the repository exporter, not hand-edited.
+- `PYTHONPATH=src:. /Users/conan/.lmstudio/extensions/backends/vendor/_amphibian/app-mlx-generate-mac14-arm64@39/bin/python -m pytest -q -p no:cacheprovider tests/test_dialogue.py tests/test_meta_adapter.py` — **23 passed in 0.37 s**, no paid calls. This includes generated-schema acceptance/rejection, provider validation/budget behavior, dialogue outcomes, duplicate review/allow-repeat, and ASR plan pricing.
+- Full local pytest attempt with the same interpreter — **stopped during collection with 4 errors** because that unrelated read-only environment lacks SQLAlchemy (`test_api_http.py`, `test_api_jobs.py`, `test_api_support.py`, `test_autocontract.py`). The prescribed Docker full suite remains blocked by socket permission, so a complete post-change suite result is not available in this sandbox.
+- Non-database local sweep excluding those four modules — **278 passed, 18 failed in 17.05 s**. All 18 failures are in pre-existing decoded audio/technical tests under the host FFmpeg: FFmpeg 8 rejects the suite's `-vsync` option, and several generated audio fixtures are unreadable/measure differently. The focused dialogue/media extraction tests pass on the same host; the Docker image remains the required reproducible gate.
+- No live/paid ASR smoke was attempted: although the focused fake gate passed, the required full suite did not. Subtitle grounding and live budget checks were intentionally skipped.
+
+
+## Addendum 2026-10-31 — independent review fixes (Muse orchestrator)
+
+- **pf-verify-0.17**: dialogue comparator folds case/punctuation (typographically
+  clean ASR previously FAILed locked lines over a trailing period); continuity
+  audits respect their scope (chunked video-only runs re-audited the whole film
+  per chunk, duplicating findings and multiplying continuity cost); per-run
+  scratch dirs are always removed (the leak filled the worker's 2 GB /tmp and
+  ERRORed 20 checks of run-009b7aae9d9d43cbbd54 with "No space left on device");
+  decoded-QC coverage tolerance is one frame duration (a fixed 1 ms bound
+  ERRORed clean concat re-encodes).
+- **Suite**: full Docker suite green — 331 passed, including new regression
+  tests for all four fixes. The 18 host-run FFmpeg failures reported earlier
+  do not reproduce in the Docker reference environment.
+- **P0-4 (dialogue half)**: `scripts/compile_edl_contract.py` compiles a
+  workprint EDL into a dialogue contract deterministically; on the real C01
+  production EDL it reproduces the hand-built contract's 13 assertions exactly.
+- **Baselines**: run-7e1df17b73a44464a1c3 (video-only, V4 draft) BLOCK $11.8134,
+  adjudication in `private/RUN1_ADJUDICATION.md`; run-009b7aae9d9d43cbbd54
+  (contract, V4 draft) BLOCK $3.5555 with coverage crippled by the scratch
+  leak — clean re-run in flight. Project cap raised to the author's $140.
+
+## Dialogue Scribe voting and Vietnamese number canonicalization (2026-10-31)
+
+- Added optional ElevenLabs Scribe v2 as an independent dialogue ASR provider. Its scoped-WAV request and response are validated locally; word timestamps are exposed in `provider_transcripts`. Missing credentials retain Meta-only operation with an explicit single-provider limitation, and Scribe errors produce `UNCERTAIN` rather than aborting or silently passing a check.
+- Dialogue comparison now canonicalizes Vietnamese digit sequences, positional numbers, and time expressions while preserving ambiguous year-noun `năm`, `rưỡi`, and real word/digit differences. Provider-level voting treats Meta biased/unbiased passes as one provider; a split provider cannot FAIL, independent providers must agree on the same differing reading to FAIL, and the historical two-agreeing-Meta-pass FAIL remains only when Scribe is disabled.
+- Scribe duration pricing is reported separately at $0.22/audio-hour through `cost.external_cost_usd` and `external_line_items`. It does not reserve or settle the Meta budget ledger. Evaluator tag: `pf-verify-0.18(...scribe-vote,number-canon...)`.
+
+Verification in this workspace:
+
+- `/opt/homebrew/bin/python3 -m pytest tests/test_dialogue.py tests/test_elevenlabs.py -q` — not run: that interpreter has no pytest installation.
+- `PYTHONPATH=src:. /Users/conan/.lmstudio/extensions/backends/vendor/_amphibian/app-mlx-generate-mac14-arm64@39/bin/python -m pytest tests/test_dialogue.py tests/test_elevenlabs.py -q -p no:cacheprovider` — **29 passed**; fake HTTP/ASR only, no paid calls.
+- Same interpreter with `tests/test_meta_adapter.py tests/test_budget_plan.py tests/test_core_pipeline.py` added — **66 passed**.
+- `.venv/bin/python -m compileall -q src/proofframe tests/test_dialogue.py tests/test_elevenlabs.py` and direct canonicalization/voting probes — passed.
+- Docker suite — not run in this sandbox; the parent agent must run the Compose gate because the Docker socket is unavailable here.
+
+## Addendum 2026-10-31 (Muse verification of Scribe + voting + number canon)
+- Full Docker suite on final tree: **352 passed, 0 failed**. One boundary fix during verification: decoded-QC coverage tolerance tightened from 1.0x to 0.5x median frame duration (a full missing frame must still fail; sub-frame seam jitter still passes).
+- Live dialogue re-run on C01 workprint: run-d10a4fe125264aed938c = BLOCK, Meta $0.006832 + external Scribe $0.004162 (separate ledger). 8 PASS / 1 FAIL / 4 UNCERTAIN (was 5/4/4 pre-Scribe).
+- Scribe broke the s04 tie: Scribe hears "1995" (the locked digit-by-digit year), Meta hears "1999" in both passes -> UNCERTAIN, evidence favours the line being correct.
+- s04b FAIL is now corroborated by two independent providers + word timestamps: the word "hội" is absent from the workprint audio at the 15.83s edit boundary (film team found it present in the source take -> suspected edit trim). Referred to the film team.
+- Known follow-ups: pad dialogue scopes (~1s tail) for lines finishing over a cut (s10 truncation class); vầy/vậy dialect rendering fold (cosmetic; does not change verdicts while another provider differs).

@@ -28,6 +28,7 @@ from ..config import Settings
 from ..db import (AssetVersion, Blob, ContractRow, Envelope, Run, get_engine, init_db,
                   make_sessionmaker)
 from ..storage import LocalStore
+from ..verify.autocontract import build_auto_contract
 
 _ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 _SHA = re.compile(r"^[0-9a-f]{64}$")
@@ -313,18 +314,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not idempotency_key or not _ID.match(idempotency_key):
             raise HTTPException(400, "Idempotency-Key header required (1-200 chars [A-Za-z0-9_.:-])")
         body = await request.json()
+        video_only = isinstance(body, dict) and body.get("mode") == "video_only"
         try:
-            csha = body["contract_sha256"]
             assets = [{"asset_id": a["asset_id"], "sha256": a["sha256"]} for a in body["assets"]]
-            if not _SHA.match(csha) or not assets or not all(_SHA.match(a["sha256"]) for a in assets):
+            if not assets or not all(_SHA.match(a["sha256"]) for a in assets):
                 raise ValueError
+            if video_only:
+                if "contract_sha256" in body or len(assets) != 1:
+                    raise ValueError
+                with Session() as db:
+                    av = db.scalar(select(AssetVersion).where(
+                        AssetVersion.tenant_id == tenant,
+                        AssetVersion.asset_id == assets[0]["asset_id"],
+                        AssetVersion.sha256 == assets[0]["sha256"]))
+                if av is None or av.media_type != "video":
+                    raise ValueError
+                auto_body = build_auto_contract(av.asset_id, {
+                    "sha256": av.sha256, "duration_ms": av.duration_ms, "has_audio": av.has_audio,
+                }, tenant)
+                auto_model = Contract.model_validate(auto_body)
+                csha = fingerprint(auto_model)
+                _store_contract(tenant, auto_model.contract_id, auto_model.revision, csha, auto_body)
+            else:
+                csha = body["contract_sha256"]
+                if not _SHA.match(csha):
+                    raise ValueError
             ids = body.get("assertion_ids")
             if ids is not None and not (isinstance(ids, list) and all(isinstance(i, str) for i in ids)):
                 raise ValueError
             mode = body.get("run_mode", "live")
             prev = body.get("previous_run_id")
         except (KeyError, TypeError, ValueError):
-            raise HTTPException(422, "body needs contract_sha256, assets[{asset_id,sha256}], run_mode")
+            detail = ("body needs mode=video_only, one video asset[{asset_id,sha256}], run_mode"
+                      if video_only else
+                      "body needs contract_sha256, assets[{asset_id,sha256}], run_mode")
+            raise HTTPException(422, detail)
         try:
             with Session() as db, db.begin():
                 run, created = jobs.create_run(

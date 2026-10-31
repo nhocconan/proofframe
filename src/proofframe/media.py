@@ -9,6 +9,7 @@ from pathlib import Path
 
 EXTRACTOR_VERSION = "pf-media-0.1(ffmpeg)"
 TIMEOUT_S = 300
+ASR_MAX_SCOPE_MS = 600_000  # Meta file endpoint rejects audio over 10 minutes.
 
 
 def sha256_file(path: Path) -> str:
@@ -75,6 +76,19 @@ def make_proxy(src: Path, start_ms: int, end_ms: int, out: Path, width: int = 64
     argv += ["-c:a", "aac", "-b:a", "64k"] if keep_audio else ["-an"]
     argv += ["-movflags", "+faststart", "-avoid_negative_ts", "make_zero", "-y", str(out)]
     _run(argv)
+    return out
+
+
+def extract_audio_wav(src: Path, start_ms: int, end_ms: int, out: Path) -> Path:
+    """Extract first audio stream from [start,end) as mono 16 kHz PCM WAV for ASR."""
+    if end_ms <= start_ms:
+        raise ValueError("empty audio scope")
+    if end_ms - start_ms > ASR_MAX_SCOPE_MS:
+        raise ValueError(f"dialogue scope exceeds ASR limit of {ASR_MAX_SCOPE_MS} ms; split it explicitly")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _run(["ffmpeg", "-v", "error", "-ss", f"{start_ms / 1000:.3f}", "-i", str(src),
+          "-t", f"{(end_ms - start_ms) / 1000:.3f}", "-map", "0:a:0", "-ac", "1", "-ar", "16000",
+          "-c:a", "pcm_s16le", "-y", str(out)])
     return out
 
 

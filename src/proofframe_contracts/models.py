@@ -92,10 +92,10 @@ class ObservationSpec(Record):
     The observer only receives `subject`, `attribute` and `vocabulary`; `expected`
     stays in deterministic comparison code. `technical` checks never call a model.
     """
-    kind: Literal["visual_attribute", "on_screen_text", "technical", "generation_artifact_scan", "cross_shot_continuity"]
+    kind: Literal["visual_attribute", "on_screen_text", "technical", "generation_artifact_scan", "cross_shot_continuity", "dialogue"]
     subject: Nonempty
     attribute: Nonempty
-    comparator: Literal["category_equals", "exact_text_nfc", "technical", "anomaly_scan", "continuity_audit"]
+    comparator: Literal["category_equals", "exact_text_nfc", "technical", "anomaly_scan", "continuity_audit", "dialogue_nfc"]
     vocabulary: tuple[Nonempty, ...] = ()
     technical_metric: Literal["duration_ms", "has_audio", "width", "height",
                               "black_duration_ms", "freeze_duration_ms", "silence_duration_ms",
@@ -105,6 +105,8 @@ class ObservationSpec(Record):
     # throughout: the attribute must hold in every clear sampled frame of the scope (state).
     # occurs: an event/state reached at some point in the scope; sampled misses are UNCERTAIN, never FAIL.
     temporal: Literal["throughout", "occurs"] = "throughout"
+    double_transcription: bool = True
+    language_bias: tuple[Nonempty, ...] = Field(default=("Vietnamese",), min_length=1)
 
     @model_serializer(mode="wrap")
     def _stable_dump(self, handler):
@@ -113,6 +115,10 @@ class ObservationSpec(Record):
             data.pop("temporal")  # keep fingerprints of pre-existing contracts unchanged
         if data.get("technical_relation") == "equals":
             data.pop("technical_relation")
+        if data.get("double_transcription") is True:
+            data.pop("double_transcription")
+        if data.get("language_bias") == ("Vietnamese",) or data.get("language_bias") == ["Vietnamese"]:
+            data.pop("language_bias")
         return data
 
     @field_validator("tolerance")
@@ -130,6 +136,8 @@ class ObservationSpec(Record):
             raise ValueError("artifact scan kind and comparator must agree")
         if (self.kind == "cross_shot_continuity") != (self.comparator == "continuity_audit"):
             raise ValueError("continuity kind and comparator must agree")
+        if (self.kind == "dialogue") != (self.comparator == "dialogue_nfc"):
+            raise ValueError("dialogue kind and comparator must agree")
         if self.kind == "technical" and self.technical_metric is None:
             raise ValueError("technical checks need a metric")
         if self.technical_relation != "equals" and (
@@ -156,6 +164,14 @@ class Assertion(Record):
     global_sentinel: bool = False
     scope: TimeScope | None = None
     observation: ObservationSpec | None = None
+    allow_repeat: bool = False
+
+    @model_serializer(mode="wrap")
+    def _stable_dump(self, handler):
+        data = handler(self)
+        if data.get("allow_repeat") is False:
+            data.pop("allow_repeat")
+        return data
 
     @model_validator(mode="after")
     def expected_in_vocabulary(self) -> Assertion:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -21,10 +22,10 @@ from proofframe_contracts.policy import evaluate
 from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
-from . import anomaly, continuity
+from . import anomaly, continuity, dialogue
 from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, numeric_status, technical
 
-EVALUATOR_VERSION = "pf-verify-0.15(audio-metering+numeric-limits)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+EVALUATOR_VERSION = "pf-verify-0.18(dialogue-asr,scribe-vote,number-canon,scoped-continuity,scratch-cleanup)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
 # 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
 # 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared; 0.8: cross-shot continuity audit; 0.9: pairwise + swapped-order adjudication; 0.10: intrinsic long-range checks, insert bridging; 0.11: adjudicate up to 24 suspicions; 0.12: assertions evaluated concurrently; 0.13: pre-run budget plan, partial results on a budget stop
 VIDEO_FPS = 1.0
@@ -120,10 +121,10 @@ def _frame_times(segments: list[dict], lo: int, hi: int) -> tuple[list[int], str
 
 
 # ---------------------------------------------------------------- main entry
-def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any],
+def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[str, Any],
                      assets: list[AssetInput], store: Store, budget: Budget,
                      assertion_ids: list[str] | None = None,
-                     previous_envelope: dict | None = None, observer=None,
+                     previous_envelope: dict | None = None, observer=None, scribe=None,
                      lineage: dict[str, dict] | None = None) -> RunOutcome:
     started = _now()
     contract = Contract.model_validate(contract_json)
@@ -148,10 +149,14 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
 
     selected = [c for c in contract.assertions if assertion_ids is None or c.assertion_id in assertion_ids]
     needs_observer = any(c.observation is not None and c.observation.kind != "technical" for c in selected)
+    observer_was_supplied = observer is not None
     if observer is None and needs_observer:
         from ..providers.meta import MetaObserver
         observer = MetaObserver(api_key=os.environ["META_DEV_API"], budget=budget, run_id=run_id,
                                 base_url=os.environ.get("META_BASE_URL", "https://api.meta.ai/v1"))
+    if scribe is None and needs_observer and not observer_was_supplied:
+        from ..providers.elevenlabs import ElevenLabsScribe
+        scribe = ElevenLabsScribe.from_env()
 
     # 2. mandatory coverage ledger BEFORE any detection: every assertion gets a row.
     evidence: list[Evidence] = []
@@ -172,7 +177,10 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
         hi_c = min(c.scope.end_ms if c.scope else pr_c.duration_ms, pr_c.duration_ms)
         if hi_c <= lo_c:
             continue
-        if o.kind == "generation_artifact_scan":
+        if o.kind == "dialogue":
+            passes = 2 if o.double_transcription else 1
+            workload.asr_minutes.extend([max(1, -(-(hi_c - lo_c) // 60_000))] * passes)
+        elif o.kind == "generation_artifact_scan":
             workload.scan_spans_ms.append(hi_c - lo_c)
         elif o.kind == "cross_shot_continuity":
             sha = by_id[c.target_asset_id].sha256
@@ -294,6 +302,91 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
                                   observer, work, store, row, results, add_evidence,
                                   plan=plan, shots=shot_cache.get(target.sha256))
                 return
+            if obs.kind == "dialogue":
+                pr = probes.get(target.asset_id)
+                if pr is None or not pr.has_audio:
+                    raise ValueError("dialogue verification requires an audio stream")
+                if check.scope is None:
+                    raise ValueError("dialogue verification requires an explicit source-time scope")
+                lo, hi = check.scope.start_ms, check.scope.end_ms
+                if hi > pr.duration_ms:
+                    raise ValueError("approved dialogue scope extends beyond media duration")
+                wav = media.extract_audio_wav(store.path_for(target.sha256), lo, hi,
+                                              work / f"{check.assertion_id}.wav")
+                wsha = store.put_file(wav, media_type="audio/wav")
+                first = observer.transcribe_wav(audio=wav, duration_ms=hi - lo,
+                                                language_bias=list(obs.language_bias),
+                                                purpose=f"dialogue:{check.assertion_id}:biased")
+                row["trace_ids"].append(first.trace["trace_id"])
+                ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
+                              artifact_sha256=wsha, kind="audio", inspection="sampled",
+                              uri=f"/v1/media/{wsha}", extractor_version=media.EXTRACTOR_VERSION,
+                              trace_id=first.trace["trace_id"], start_ms=lo, end_ms=hi)
+                add_evidence(ev, role="target", label=f"dialogue audio {lo/1000:.3f}-{hi/1000:.3f}s",
+                             media_type="audio/wav")
+                if not first.ok:
+                    if first.outcome == "budget_exhausted":
+                        raise _NotChecked(first.trace.get("error", "budget exhausted"))
+                    raise _ProviderError(f"dialogue ASR {first.outcome}: {first.trace.get('error')}")
+                heard = first.parsed["transcript"]
+                provider_transcripts = [{"provider": "meta", "transcript": heard,
+                                         "word_timestamps_available": False,
+                                         "trace_id": first.trace["trace_id"]}]
+                vote_inputs = [("meta", heard)]
+                second_text = None
+                if obs.double_transcription:
+                    second = observer.transcribe_wav(audio=wav, duration_ms=hi - lo, language_bias=None,
+                                                     purpose=f"dialogue:{check.assertion_id}:unbiased")
+                    row["trace_ids"].append(second.trace["trace_id"])
+                    if not second.ok:
+                        if second.outcome == "budget_exhausted":
+                            raise _NotChecked(second.trace.get("error", "budget exhausted"))
+                        raise _ProviderError(f"dialogue ASR second pass {second.outcome}: {second.trace.get('error')}")
+                    second_text = second.parsed["transcript"]
+                    vote_inputs.append(("meta", second_text))
+                    provider_transcripts.append({"provider": "meta", "transcript": second_text,
+                                                 "word_timestamps_available": False,
+                                                 "trace_id": second.trace["trace_id"]})
+                provider_errors: list[tuple[str, str]] = []
+                word_timestamps = False
+                if scribe is not None:
+                    scribe_result = scribe.transcribe_wav(
+                        audio=wav, duration_ms=hi - lo, language_bias=None,
+                        purpose=f"dialogue:{check.assertion_id}:scribe")
+                    row["trace_ids"].append(scribe_result.trace["trace_id"])
+                    if scribe_result.ok:
+                        scribe_text = scribe_result.parsed["transcript"]
+                        word_timestamps = bool(scribe_result.parsed.get("wordTimestampsAvailable"))
+                        vote_inputs.append(("elevenlabs", scribe_text))
+                        provider_transcripts.append({
+                            "provider": "elevenlabs", "transcript": scribe_text,
+                            "word_timestamps_available": word_timestamps,
+                            "words": scribe_result.parsed.get("words", []),
+                            "trace_id": scribe_result.trace["trace_id"]})
+                    else:
+                        error = f"{scribe_result.outcome}: {scribe_result.trace.get('error')}"
+                        provider_errors.append(("elevenlabs", error))
+                        provider_transcripts.append({"provider": "elevenlabs", "error": error,
+                                                     "trace_id": scribe_result.trace["trace_id"]})
+                verdict = dialogue.decide_provider_transcripts(
+                    check.expected, vote_inputs, independent_provider_enabled=scribe is not None,
+                    provider_errors=provider_errors)
+                timing_note = ("word-level ASR timing supplied by ElevenLabs Scribe"
+                               if word_timestamps else
+                               "ASR timestamps are turn-level only; this is not word alignment")
+                provider_note = ([] if scribe is not None else
+                                 ["single-provider dialogue evidence: ElevenLabs Scribe is disabled"])
+                row.update(observed=heard, evidence_ids=[ev.evidence_id], rationale=verdict.rationale,
+                           focus={"start_ms": lo, "end_ms": hi}, transcript=heard,
+                           second_transcript=second_text,
+                           provider_transcripts=provider_transcripts,
+                           limitations=[timing_note, "ASR does not establish speaker identity or lip sync",
+                                        *provider_note])
+                results[check.assertion_id] = CheckResult(
+                    assertion_id=check.assertion_id, status=Status(verdict.status),
+                    evidence_ids=(ev.evidence_id,), rationale=verdict.rationale,
+                    evaluator_version=EVALUATOR_VERSION)
+                return
             if obs.kind == "generation_artifact_scan":
                 _artifact_scan(check, target, probes[target.asset_id], store.path_for(target.sha256),
                                observer, work, store, row, results, add_evidence, plan=plan)
@@ -414,6 +507,29 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
     with _TPE(max_workers=4) as _ex:
         list(_ex.map(_one, selected))
 
+    # Deterministic episode/scene duplicate detection over already-paid transcripts.
+    dialogue_checks = [c for c in selected if c.observation and c.observation.kind == "dialogue"
+                       and checks.get(c.assertion_id, {}).get("transcript")]
+    for pos, left in enumerate(dialogue_checks):
+        for right in dialogue_checks[pos + 1:]:
+            if left.allow_repeat or right.allow_repeat or left.scope == right.scope:
+                continue
+            a, b = checks[left.assertion_id], checks[right.assertion_id]
+            if dialogue.similarity(a["transcript"], b["transcript"]) < 0.9:
+                continue
+            note = (f"same line heard at {left.scope.start_ms} ms and {right.scope.start_ms} ms "
+                    "(token similarity >= 0.9); review for accidental repetition")
+            for check, other in ((left, right), (right, left)):
+                row = checks[check.assertion_id]
+                row.setdefault("findings", []).append({"category": "duplicate_dialogue", "verdict": "review",
+                                                       "description": note,
+                                                       "other_assertion_id": other.assertion_id})
+                row["rationale"] = row["rationale"] + " " + note
+                current = results[check.assertion_id]
+                if current.status == Status.PASS:
+                    results[check.assertion_id] = current.model_copy(
+                        update={"status": Status.UNCERTAIN, "rationale": row["rationale"][:2000]})
+
     # 3. dependencies: a PASS whose prerequisites did not PASS is downgraded, never kept.
     for check in selected:
         r = results[check.assertion_id]
@@ -436,8 +552,11 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
             row["regression"] = {"before": before.get(aid), "after": row["status"],
                                  "classification": classify(before.get(aid), row["status"])}
 
-    traces = list(getattr(observer, "traces", []))
+    traces = list(getattr(observer, "traces", [])) + list(getattr(scribe, "traces", []))
     costs = [t.get("cost_usd") for t in traces if t.get("outcome") not in ("budget_exhausted",)]
+    external_traces = [t for t in traces if t.get("external_cost")]
+    meta_costs = [t.get("cost_usd") for t in traces if not t.get("external_cost")
+                  and t.get("outcome") not in ("budget_exhausted",)]
     counts = {k: 0 for k in ("pass", "fail", "uncertain", "not_checked", "error", "not_applicable")}
     for r in results.values():
         counts[r.status.value.lower()] += 1
@@ -445,6 +564,9 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
                        "LIVE RUN — deterministic media checks; no model calls"),
               "recorded_replay": "RECORDED REPLAY — not a live run",
               "synthetic_fixture": "SYNTHETIC FIXTURE — not evidence of video understanding"}
+    envelope_labels = [labels.get(run_mode, run_mode)]
+    if contract.profile_revision == "video-only-no-brief-v1":
+        envelope_labels.append("VIDEO_ONLY_NO_BRIEF")
     envelope = {
         "schema_version": "proofframe.envelope.v0.1",
         "run": {"run_id": run_id, "run_mode": run_mode, "profile": contract.profile,
@@ -467,10 +589,34 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
                      "selected": len(selected), "contract_total": len(contract.assertions)},
         "cost": {"estimated_usd": round(sum(c for c in costs if c is not None), 6),
                  "unknown_cost_calls": sum(1 for c in costs if c is None),
-                 "basis": "usage × list price (estimate, not an invoice)"},
-        "labels": [labels.get(run_mode, run_mode)],
+                 "meta_budgeted_cost_usd": round(sum(c for c in meta_costs if c is not None), 6),
+                 "external_cost_usd": round(sum(t.get("external_cost_usd") or 0 for t in external_traces), 6),
+                 "external_line_items": [{"provider": t["provider"], "model": t["model"],
+                                           "cost_usd": t.get("external_cost_usd"),
+                                           "basis": t.get("cost_basis"), "purpose": t.get("purpose")}
+                                          for t in external_traces],
+                 "basis": "provider usage/duration × list price (estimate, not an invoice)"},
+        "labels": envelope_labels,
     }
     return RunOutcome(envelope=envelope, artifacts=artifacts)
+
+
+def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any],
+                     assets: list[AssetInput], store: Store, budget: Budget,
+                     assertion_ids: list[str] | None = None,
+                     previous_envelope: dict | None = None, observer=None, scribe=None,
+                     lineage: dict[str, dict] | None = None) -> RunOutcome:
+    """Public entry point: guarantee per-run scratch cleanup. The worker's
+    /tmp is a small tmpfs; leaked pf-<run_id>-* dirs filled it and ERRORed
+    later runs, so the scratch dir is removed on every exit path."""
+    try:
+        return _run_verification_impl(run_id=run_id, run_mode=run_mode, contract_json=contract_json,
+                                      assets=assets, store=store, budget=budget,
+                                      assertion_ids=assertion_ids, previous_envelope=previous_envelope,
+                                      observer=observer, scribe=scribe, lineage=lineage)
+    finally:
+        for stale in Path(tempfile.gettempdir()).glob(f"pf-{run_id}-*"):
+            shutil.rmtree(stale, ignore_errors=True)
 
 
 def _artifact_scan(check, target, pr, src, observer, work, store, row, results, add_evidence,
@@ -616,6 +762,15 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
 
     aid = check.assertion_id
     shots = shots or media.detect_shots(src, pr.duration_ms)
+    if check.scope is not None:
+        # A scoped audit must only spend on (and only report) its own window:
+        # keep shots overlapping the scope plus one neighbour on each side
+        # for boundary pairs. Without this, chunked audits re-audit the
+        # whole film and duplicate each other's findings.
+        lo_s, hi_s = check.scope.start_ms, check.scope.end_ms
+        idx = [i for i, (a, b) in enumerate(shots) if b > lo_s and a < hi_s]
+        if idx:
+            shots = [shots[i] for i in range(max(0, idx[0] - 1), min(len(shots), idx[-1] + 2))]
     keys = continuity.plan_keyframes(shots)
     paths = {k.label: media.extract_frame(src, k.t_ms, work / f"{aid}-{k.label}.png", width=768) for k in keys}
     hires: dict[int, list[tuple[int, Path]]] = {}

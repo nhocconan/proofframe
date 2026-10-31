@@ -66,7 +66,9 @@ def main(argv: list[str] | None = None) -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("doctor")
     v = sub.add_parser("verify")
-    v.add_argument("--contract", required=True, type=Path)
+    v.add_argument("--contract", type=Path)
+    v.add_argument("--video-only", action="store_true",
+                   help="scan one video for generic defects without an approved brief")
     v.add_argument("--video", action="append", help="asset_id=/path/to.mp4")
     v.add_argument("--audio", action="append", help="asset_id=/path/to.wav")
     v.add_argument("--assertions")
@@ -85,6 +87,10 @@ def main(argv: list[str] | None = None) -> None:
     a = p.parse_args(argv)
     if a.cmd == "verify" and not (a.video or a.audio):
         p.error("verify requires at least one --video or --audio asset")
+    if a.cmd == "verify" and bool(a.contract) == bool(a.video_only):
+        p.error("verify requires exactly one of --contract or --video-only")
+    if a.cmd == "verify" and a.video_only and (len(a.video or []) != 1 or a.audio):
+        p.error("--video-only requires exactly one --video and does not accept --audio")
 
     with _c() as c:
         if a.cmd == "doctor":
@@ -93,8 +99,10 @@ def main(argv: list[str] | None = None) -> None:
             print("meta key configured:", bool(os.environ.get("META_DEV_API")))
             return
         if a.cmd == "verify":
-            contract = json.loads(a.contract.read_text(encoding="utf-8"))
-            ck = _ok(c.post("/v1/contracts", json=contract))
+            ck = None
+            if a.contract:
+                contract = json.loads(a.contract.read_text(encoding="utf-8"))
+                ck = _ok(c.post("/v1/contracts", json=contract))
             assets = []
             for spec, media_type in ([(s, "video") for s in a.video or []]
                                      + [(s, "audio") for s in a.audio or []]):
@@ -102,7 +110,9 @@ def main(argv: list[str] | None = None) -> None:
                 av = upload(c, aid, Path(path), media_type=media_type)
                 print(f"asset {aid} rev {av['revision']} sha256 {av['sha256']} {av.get('duration_ms')}ms")
                 assets.append({"asset_id": aid, "sha256": av["sha256"]})
-            body = {"contract_sha256": ck["contract_sha256"], "assets": assets, "run_mode": "live"}
+            body = ({"mode": "video_only", "assets": assets, "run_mode": "live"}
+                    if a.video_only else
+                    {"contract_sha256": ck["contract_sha256"], "assets": assets, "run_mode": "live"})
             if a.assertions:
                 body["assertion_ids"] = a.assertions.split(",")
             run = _ok(c.post("/v1/verifications", json=body, headers={"Idempotency-Key": uuid.uuid4().hex}))

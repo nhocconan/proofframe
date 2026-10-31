@@ -107,6 +107,11 @@
             }
           ],
           "default": null
+        },
+        "allow_repeat": {
+          "default": false,
+          "title": "Allow Repeat",
+          "type": "boolean"
         }
       },
       "required": [
@@ -230,7 +235,8 @@
             "on_screen_text",
             "technical",
             "generation_artifact_scan",
-            "cross_shot_continuity"
+            "cross_shot_continuity",
+            "dialogue"
           ],
           "title": "Kind",
           "type": "string"
@@ -251,7 +257,8 @@
             "exact_text_nfc",
             "technical",
             "anomaly_scan",
-            "continuity_audit"
+            "continuity_audit",
+            "dialogue_nfc"
           ],
           "title": "Comparator",
           "type": "string"
@@ -319,6 +326,23 @@
           ],
           "title": "Temporal",
           "type": "string"
+        },
+        "double_transcription": {
+          "default": true,
+          "title": "Double Transcription",
+          "type": "boolean"
+        },
+        "language_bias": {
+          "default": [
+            "Vietnamese"
+          ],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Language Bias",
+          "type": "array"
         }
       },
       "required": [

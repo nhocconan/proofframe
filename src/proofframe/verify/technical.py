@@ -64,10 +64,17 @@ def _coverage(output: str, span_ms: int) -> tuple[float, float]:
         frames.append((float(pts), float(pts + duration), float(duration)))
     if not frames:
         raise ValueError("no decoded frames in requested scope")
+    # Contiguity is judged against half a frame duration, not a fixed 1 ms:
+    # ordinary concat/re-encode pipelines leave sub-frame timestamp jitter
+    # at segment seams, and a fixed 1 ms bound ERRORs the whole check on
+    # clean files. A gap or overlap of half a frame or more still fails, so
+    # real coverage holes (a whole missing frame included) stay fail-closed.
+    durations = sorted(d for _, _, d in frames)
+    frame_tol = max(1.0, durations[len(durations) // 2] / 2)
     tolerance = max(1.0, frames[0][2])
     end = frames[0][1]
     for start, stop, _ in frames[1:]:
-        if start < end - 1.0 or start > end + 1.0:
+        if start < end - frame_tol or start > end + frame_tol:
             raise ValueError("decoded timestamps overlap or leave unchecked gaps")
         end = max(end, stop)
     if frames[0][0] > tolerance or frames[0][0] < -tolerance or end < span_ms - 1.0:

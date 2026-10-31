@@ -39,7 +39,9 @@
         "end_ms": null
       },
       "approved_exclusion": null,
-      "global_sentinel": false
+      "global_sentinel": false,
+      "scope": null,
+      "observation": null
     }
   ]
 }

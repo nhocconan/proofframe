@@ -10,8 +10,8 @@ x-app: &app
     DATABASE_URL: postgresql+psycopg://proofframe:proofframe@db:5432/proofframe
     PROOFFRAME_MODE: meta_hackathon
     PROOFFRAME_ALLOW_PAID_CALLS: "true"
-    PROOFFRAME_MAX_PROJECT_COST_USD: "10"
-    PROOFFRAME_MAX_RUN_COST_USD: "${PROOFFRAME_MAX_RUN_COST_USD:-2}"
+    PROOFFRAME_MAX_PROJECT_COST_USD: "${PROOFFRAME_MAX_PROJECT_COST_USD:-100}"
+    PROOFFRAME_MAX_RUN_COST_USD: "${PROOFFRAME_MAX_RUN_COST_USD:-15}"
     PROOFFRAME_MAX_REPAIR_ATTEMPTS: "2"
     PROOFFRAME_PROBE_SPEND_USD: "0.04597"   # Gate 0 probes, pre-seeded into the ledger
     PROOFFRAME_TENANT_ID: demo-tenant
@@ -19,6 +19,7 @@ x-app: &app
     PROOFFRAME_DATA_DIR: /data
     PROOFFRAME_DROPBOX_DIR: /dropbox
     META_BASE_URL: https://api.meta.ai/v1
+    ELEVENLABS_API_KEY: "${ELEVENLABS_API_KEY:-}"
   volumes:
     - pf_data:/data
     - ./dropbox:/dropbox
@@ -27,7 +28,7 @@ x-app: &app
     db: { condition: service_healthy }
   read_only: true
   tmpfs: [/tmp]
-  cpus: 4
+  cpus: "2"
   mem_limit: 4g
 
 services:

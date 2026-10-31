@@ -1,0 +1,41 @@
+{
+  "schema_version": "proofframe.contract.v0.1",
+  "contract_id": "dialogue-qc-template-not-approved",
+  "revision": 1,
+  "tenant_id": "replace-me",
+  "profile": "film",
+  "profile_revision": "template-not-approved-v1",
+  "assets": [
+    {"asset_id": "delivery", "media_type": "video", "role": "output"}
+  ],
+  "assertions": [
+    {
+      "assertion_id": "dialogue-line-01",
+      "source_pointer": "/approved-script/scene-01/line-01",
+      "target_asset_id": "delivery",
+      "predicate": "spoken line matches locked script",
+      "expected": "Replace with the exact approved line",
+      "scope": {"start_ms": 1000, "end_ms": 5000},
+      "observation": {"kind": "dialogue", "subject": "Speaker description, not the expected words", "attribute": "spoken words", "comparator": "dialogue_nfc"}
+    },
+    {
+      "assertion_id": "dialogue-line-02",
+      "source_pointer": "/approved-script/scene-01/line-02",
+      "target_asset_id": "delivery",
+      "predicate": "spoken line matches locked script",
+      "expected": "Replace with the next exact approved line",
+      "scope": {"start_ms": 6000, "end_ms": 10000},
+      "observation": {"kind": "dialogue", "subject": "Second speaker description", "attribute": "spoken words", "comparator": "dialogue_nfc", "language_bias": ["Vietnamese"]}
+    },
+    {
+      "assertion_id": "dialogue-approved-repeat-example",
+      "source_pointer": "/approved-script/scene-01/line-03",
+      "target_asset_id": "delivery",
+      "predicate": "spoken line matches locked script",
+      "expected": "Replace with an intentionally repeated line",
+      "allow_repeat": true,
+      "scope": {"start_ms": 11000, "end_ms": 15000},
+      "observation": {"kind": "dialogue", "subject": "Speaker description", "attribute": "spoken words", "comparator": "dialogue_nfc", "double_transcription": true}
+    }
+  ]
+}

@@ -21,6 +21,7 @@ COST = {  # USD per call, measured averages (run-ee24dd80868649a4b3b1)
     "continuity_log": 0.033,
     "continuity_pair": 0.011,
     "continuity_adjudicate": 0.012,
+    "asr_minute": 0.0024,
 }
 MARGIN = 1.10
 # Reductions in order of least detection value lost (registry pairs and caps first, adjacent pairs never).
@@ -52,7 +53,8 @@ class RunPlan:
         d = asdict(self)
         d["full_estimate_usd"] = round(d["full_estimate_usd"], 3)
         d["estimate_usd"] = round(d["estimate_usd"], 3)
-        d["basis"] = "per-call averages from live runs + 10 % margin; adjudication counted at its cap"
+        d["basis"] = ("visual per-call averages from live runs plus probe-measured ASR duration rate, "
+                      "+ 10 % margin; adjudication counted at its cap")
         return d
 
     def limits(self, stage: str) -> list[str]:
@@ -70,6 +72,7 @@ class Workload:
     assertion_minutes: list[int] = field(default_factory=list)  # one entry per visual assertion
     scan_spans_ms: list[int] = field(default_factory=list)       # one entry per artifact scan
     continuity_shots: list[list[tuple[int, int]]] = field(default_factory=list)  # one entry per audit
+    asr_minutes: list[int] = field(default_factory=list)  # one entry per transcription pass
 
 
 def _minutes(span_ms: int) -> int:
@@ -79,6 +82,7 @@ def _minutes(span_ms: int) -> int:
 def estimate(w: Workload, p: RunPlan) -> float:
     c = COST
     total = sum(m * c["localize_minute"] + c["confirm"] for m in w.assertion_minutes)
+    total += sum(m * c["asr_minute"] for m in w.asr_minutes)
     for span in w.scan_spans_ms:
         grid = max(1, span // p.grid_step_ms)
         total += _minutes(span) * c["hunt_minute"] + -(-grid // anomaly.GRID_BATCH) * c["grid"]

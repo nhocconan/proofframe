@@ -1,7 +1,8 @@
 """Meta developer API adapter: native video + image observation via the Responses API.
 
-Capabilities implemented: `video_observation` (muse-spark-1.3, Files API upload, input_video fps)
-and `image_observation` (input_image data URLs). The domain layer does not import this module;
+Capabilities implemented: `video_observation` (muse-spark-1.3, Files API upload, input_video fps),
+`image_observation` (input_image data URLs), and scoped speech transcription
+(`muse-voice-transcribe-1.0`). The domain layer does not import this module;
 the pipeline receives an `Observer` built here.
 
 Every call: budget reservation first (conservative upper bound) -> request -> settle with
@@ -27,6 +28,8 @@ from jsonschema import Draft202012Validator, SchemaError, ValidationError
 from ..interfaces import Budget, BudgetExhausted
 
 PRICES_USD_PER_MTOK = {"muse-spark-1.3": (1.25, 4.25)}  # dev.meta.ai pricing page, 2026-10-27
+ASR_MODEL = "muse-voice-transcribe-1.0"
+ASR_USD_PER_SECOND = 0.18 / 3600
 VIDEO_TOKENS_PER_FRAME_EST = 160   # measured ~117/s at fps=1, 640px (CAPABILITY_PROBES.md) + margin
 IMAGE_TOKENS_EST = 2500            # not documented; conservative reservation only
 PROMPT_TOKENS_EST = 1500
@@ -148,6 +151,79 @@ class MetaObserver:
             content.append({"type": "input_image", "image_url": f"data:image/png;base64,{b64}"})
         return self._respond(content, schema, schema_name, purpose, res_id)
 
+    def transcribe_wav(self, *, audio: Path, duration_ms: int, language_bias: list[str] | None,
+                       purpose: str) -> CallResult:
+        """Call the probed Muse Voice endpoint. No approved dialogue text is sent."""
+        upper = duration_ms / 1000 * ASR_USD_PER_SECOND * 1.25
+        try:
+            res_id = self.budget.reserve(run_id=self.run_id, provider="meta", model=ASR_MODEL,
+                                         amount_usd=upper, purpose=purpose)
+        except BudgetExhausted as exc:
+            return self._skipped_asr(purpose, str(exc))
+        request = {"mode": "ENDPOINTING", "model": ASR_MODEL, "audioEncoding": "WAV"}
+        if language_bias:
+            request["languageBias"] = language_bias
+        digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
+        trace = {"trace_id": f"tr-{uuid.uuid4().hex[:12]}", "provider": "meta", "model": ASR_MODEL,
+                 "endpoint": "/asr/transcribe", "purpose": purpose, "request_digest": digest,
+                 "language_bias": language_bias, "media": ["audio/wav"]}
+        t0 = time.monotonic()
+        try:
+            with open(audio, "rb") as fh:
+                r = self.client.post(f"{self.base_url}/asr/transcribe", headers=self._h, timeout=600,
+                                     files={"request": (None, json.dumps(request), "application/json"),
+                                            "audio": (audio.name, fh, "audio/wav")})
+        except httpx.TimeoutException as exc:
+            trace.update(latency_s=round(time.monotonic() - t0, 2), http_status=None)
+            self.budget.settle(res_id, cost_usd=None, cost_basis="unknown(timeout; reservation held)",
+                               usage=None, remote_request_id=None, outcome="timeout")
+            return self._finish_asr(trace, "timeout", None, None, f"timeout: {exc}")
+        except httpx.HTTPError as exc:
+            self.budget.settle(res_id, cost_usd=None, cost_basis="unknown(connection_error; reservation held)", usage=None,
+                               remote_request_id=None, outcome="http_error")
+            return self._finish_asr(trace, "http_error", None, None, f"connection error: {exc}")
+        trace.update(latency_s=round(time.monotonic() - t0, 2), http_status=r.status_code)
+        try:
+            data = r.json()
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            data = {}
+        dur = data.get("audioDurationMs")
+        valid_duration = isinstance(dur, int) and not isinstance(dur, bool) and dur >= 0
+        usage = {"audioDurationMs": dur} if valid_duration else None
+        cost = float(dur) / 1000 * ASR_USD_PER_SECOND if valid_duration else None
+        remote = r.headers.get("x-request-id")
+        if r.status_code != 200:
+            self.budget.settle(res_id, cost_usd=cost if cost is not None else 0.0,
+                               cost_basis="audio_duration*list_price" if cost is not None else "http_error_no_usage",
+                               usage=usage, remote_request_id=remote, outcome="http_error")
+            return self._finish_asr(trace, "http_error", usage, cost,
+                                    f"HTTP {r.status_code}: {str(data.get('error') or r.text)[:300]}", remote)
+        transcript = data.get("transcript")
+        session_id, turns = data.get("sessionId"), data.get("turns")
+        valid_turns = isinstance(turns, list) and all(
+            isinstance(t, dict)
+            and isinstance(t.get("turnId"), int) and not isinstance(t.get("turnId"), bool)
+            and isinstance(t.get("startMs"), int) and not isinstance(t.get("startMs"), bool)
+            and isinstance(t.get("endMs"), int) and not isinstance(t.get("endMs"), bool)
+            and 0 <= t["startMs"] <= t["endMs"]
+            and isinstance(t.get("transcript"), str)
+            for t in turns
+        )
+        if (not isinstance(session_id, str) or not session_id or not isinstance(transcript, str)
+                or not valid_duration or not valid_turns):
+            self.budget.settle(res_id, cost_usd=cost,
+                               cost_basis="audio_duration*list_price" if cost is not None else "unknown(no duration)",
+                               usage=usage, remote_request_id=remote, outcome="invalid_output")
+            return self._finish_asr(trace, "invalid_output", usage, cost,
+                                    "ASR response does not satisfy the buffered TranscribeResponse schema", remote)
+        self.budget.settle(res_id, cost_usd=cost, cost_basis="audio_duration*list_price",
+                           usage=usage, remote_request_id=remote, outcome="ok")
+        parsed = {"sessionId": session_id, "transcript": transcript, "audioDurationMs": dur, "turns": turns}
+        trace["raw_output"] = parsed
+        return self._finish_asr(trace, "ok", usage, cost, None, remote, parsed)
+
     # ---------- internals
     def _upload(self, path: Path) -> str:
         with open(path, "rb") as fh:
@@ -258,6 +334,20 @@ class MetaObserver:
                  "error": why, "remote_request_id": None}
         self.traces.append(trace)
         return CallResult(ok=False, parsed=None, trace=trace, outcome=outcome)
+
+    def _skipped_asr(self, purpose: str, why: str) -> CallResult:
+        trace = {"trace_id": f"tr-{uuid.uuid4().hex[:12]}", "provider": "meta", "model": ASR_MODEL,
+                 "endpoint": "/asr/transcribe", "purpose": purpose, "http_status": None, "latency_s": 0,
+                 "usage": None, "cost_usd": 0.0, "cost_basis": "not_called", "outcome": "budget_exhausted",
+                 "error": why, "remote_request_id": None}
+        self.traces.append(trace)
+        return CallResult(ok=False, parsed=None, trace=trace, outcome="budget_exhausted")
+
+    def _finish_asr(self, trace: dict, outcome: str, usage, cost, error, remote=None,
+                    parsed=None) -> CallResult:
+        result = self._finish(trace, outcome, usage, cost, error, remote, parsed)
+        result.trace["cost_basis"] = "audio_duration*list_price" if cost is not None else "unknown"
+        return result
 
 
 def _digest_without_media(body: dict) -> str:

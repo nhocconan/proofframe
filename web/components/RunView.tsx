@@ -178,6 +178,7 @@ export default function RunView({ env }: { env: Envelope; fixture?: boolean }) {
   const regs = env.checks.filter((c) => c.regression);
   const regCount = (k: string) => regs.filter((c) => c.regression?.classification === k).length;
   const d = env.decision.decision;
+  const videoOnly = env.labels?.includes("VIDEO_ONLY_NO_BRIEF") ?? false;
   const dismissed = (env.checks as ScanCheck[]).flatMap((c) => (c.findings ?? []).filter((f) => f.verdict === "rejected"));
 
   const seek = (ms: number) => { if (vref.current) { vref.current.currentTime = ms / 1000; } };
@@ -196,7 +197,9 @@ export default function RunView({ env }: { env: Envelope; fixture?: boolean }) {
         <div className="hero-main">
           <div className={`verdict v-${d}`} data-testid="decision">{VERDICT[d]?.label ?? d}</div>
           <div>
-            <div className="hero-line">{VERDICT[d]?.line}</div>
+            <div className="hero-line">{videoOnly && d === "ELIGIBLE"
+              ? "No confirmed defects in sampled scan — nothing was checked against a brief."
+              : VERDICT[d]?.line}</div>
             <div className="chips" data-testid="coverage">
               <span className="chip c-block">{blockers.length} blocking</span>
               <span className="chip c-review">{reviews.length} to review</span>

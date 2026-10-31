@@ -146,3 +146,22 @@ def test_process_failure_and_timeout_propagate(clips, monkeypatch):
         monkeypatch.setattr(media, "_run", fail)
         with pytest.raises(type(error)):
             scan(clips["black"], start_ms=0, end_ms=2000, metric="black_duration_ms")
+
+
+def _cov_output(spans):
+    lines = ["#tb 0: 1/1000"] + [f"0,0,{p},{d},0,0" for p, d in spans]
+    return "\n".join(lines)
+
+
+def test_coverage_tolerates_subframe_seam_jitter():
+    from proofframe.verify.technical import _coverage
+    out = _cov_output([(0, 40), (40, 40), (70, 40), (110, 40)])  # 10 ms overlap at a seam
+    start, end = _coverage(out, 150)
+    assert end == 150
+
+
+def test_coverage_still_rejects_real_gap():
+    from proofframe.verify.technical import _coverage
+    out = _cov_output([(0, 40), (40, 40), (160, 40)])  # 80 ms hole in coverage
+    with pytest.raises(ValueError):
+        _coverage(out, 200)
