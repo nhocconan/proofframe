@@ -327,6 +327,20 @@
           "title": "Temporal",
           "type": "string"
         },
+        "min_coverage": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Coverage"
+        },
         "double_transcription": {
           "default": true,
           "title": "Double Transcription",

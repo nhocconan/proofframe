@@ -263,3 +263,48 @@ Verification in this workspace:
 - Scribe broke the s04 tie: Scribe hears "1995" (the locked digit-by-digit year), Meta hears "1999" in both passes -> UNCERTAIN, evidence favours the line being correct.
 - s04b FAIL is now corroborated by two independent providers + word timestamps: the word "hội" is absent from the workprint audio at the 15.83s edit boundary (film team found it present in the source take -> suspected edit trim). Referred to the film team.
 - Known follow-ups: pad dialogue scopes (~1s tail) for lines finishing over a cut (s10 truncation class); vầy/vậy dialect rendering fold (cosmetic; does not change verdicts while another provider differs).
+
+## 2D cartoon calibration, Scribe language fix, key-text coverage (pf-verify-0.19, 2026-10-31)
+
+Branch `feat/key-text-coverage-why003-calibration`. Film: a private, unreleased 2D cartoon, 211.3 s,
+sha256 `6298bf55181fea6c01ec2a7fb9587d7b8fd464729c4f8a55db94f108bcdc3219`. No media, frames, contract text or
+labels are committed; they stayed in gitignored `media/`, `dropbox/` and the owner's production repo.
+
+- **Bug found before the paid run (code reading):** the Scribe adapter sent `language_code: "vie"` for every
+  contract, so English dialogue would be decoded as Vietnamese. Now the contract's `language_bias` maps to an
+  ISO 639-3 code (`vie`, `eng`; unknown → no code, auto-detect); free-text bias is still never sent.
+  Tests: `tests/test_elevenlabs.py`, `tests/test_dialogue.py::test_pipeline_sends_contract_language_to_scribe`.
+- **New `min_coverage` (0 < x ≤ 1) on on-screen text / visual attributes held throughout a scope:** uniform grid of
+  4–16 frames (`compare.coverage_grid`, one per 250 ms; model hints not used), `compare.decide_coverage`: PASS if
+  matched/sampled ≥ x with no differing reading; FAIL only with ≥ 1 clear match and ≥ 2 frames with no such
+  text, and even counting unreadable/differing frames as misreads the fraction stays < x; else UNCERTAIN (or the
+  existing exact-value FAIL when the wrong text is held). Report row gains `coverage`; UI shows "read in m of n
+  evenly spaced frames". Plan counts the larger confirmation. Field omitted from fingerprints when unset (stored
+  fingerprint test unchanged). Tests: `tests/test_text_coverage.py` (9).
+- **Isolated stack:** `docker compose -p pfcal -f docker-compose.yml -f private/compose.cal.yml up -d --build db api
+  worker` (own image tag `proofframe-app:cal`, own volumes, no published ports, cpus db 1 / api 2 / worker 4,
+  caps $8 project / $3.5 run set in the override; the running public stack was not touched).
+- **Live run 1** `run-760e05bcc4da41baba85`, full contract (24 exact-text, 52 English dialogue, 4 prop/character,
+  artifact scan, continuity, has-audio): BLOCK, **$2.0954** Meta (plan estimate $2.654) + **$0.0113** Scribe,
+  started 04:36:54Z, finished 04:46:35Z (580 s). 54 shots, 93 pairs, 24 adjudications.
+  Against 17 defects from two independent blind model audits (labels, NOT owner-confirmed): 1/5 majors (prop held
+  by an ownerless hand, artifact scan, blind), 1/12 minors (prop missing in 2 of 6 frames, declared check written
+  after reading the audits). 2/10 of the visual defects. False blocking: 3 (agent adjudication from frames);
+  unresolved: 4. Text 24/24 PASS; dialogue 44 PASS / 1 FAIL (invented name, both ASRs agree on another spelling) /
+  7 UNCERTAIN (Meta ASR repeated or misheard words; Scribe matched the script on 5 of 7).
+  `python scripts/score_findings.py /dropbox/…/report.json /dropbox/…/labels.json` (in the api container) →
+  confirmed matched 1/17, precision unknown (5 unresolved roots).
+- **Live run 2** `run-792628c2b85643e5a744`, the 24 text assertions with `min_coverage: 0.9`: **$0.4261**, 157 s
+  wall. 22 PASS at 100 % of 5–16 frames; 2 FAIL where the contract window started before the text was due
+  (first match 1.15 s / 1.06 s into the window): correct measurement, over-strict contract, fixed in the
+  contract builder. No real coverage defect existed in this film, so this proves timing measurement, not a catch.
+- **Meta total this entry: $2.5215** (ledger 2.556229 − 0.04597 probe seed).
+- Gates: `docker compose -p pfcal … run --rm -T -v <src,tests,scripts,schemas,demo,examples,profiles,validation,pyproject.toml>:/repo api sh -c 'cp -r /repo /tmp/r && cd /tmp/r && PYTHONPATH=/tmp/r/src python -m pytest -q -p no:cacheprovider'`
+  → **363 passed, 1 warning, 55.21 s** (Postgres from the pfcal stack). First attempt mounting the whole repo
+  failed: `cp: cannot open '/repo/.env'` (permission) — secrets are not copied into test containers.
+  Web: `docker run --rm --cpus 2 -v $PWD/web:/src:ro node:22-slim sh -c 'cp -r /src /w && cd /w && npm ci && npx tsc --noEmit'` → npm ci 0, tsc 0.
+  Schemas: `python scripts/export_schemas_and_examples.py` → 4 schemas / 10 examples valid; `schemas/contract.schema.json` regenerated.
+  Earlier partial gate `pytest tests/test_elevenlabs.py tests/test_dialogue.py` → 1 failure that was only the
+  test container lacking `schemas/` (not mounted); passes in the full gate.
+- Not done: ASR word timestamps are not yet used to place a coverage window (the window comes from the
+  contract); object provenance across cuts (props popping in at a cut) remains the most-missed class.

@@ -86,6 +86,88 @@ def decide(comparator: str, expected: str, frames: list[FrameReading], *, min_it
     return Verdict("UNCERTAIN", observed, tuple(f.evidence_id for f in partial), summary + f" {why}.")
 
 
+COVERAGE_STEP_MS = 250
+COVERAGE_MIN_FRAMES = 4
+COVERAGE_MAX_FRAMES = 16
+
+
+def coverage_grid(lo: int, hi: int) -> list[int]:
+    """Uniform frame times for a coverage check: one frame at the centre of each of N equal sub-intervals
+    (N = span / 250 ms, clamped to 4..16). Model-suggested times are NOT used, so the fraction is unbiased."""
+    n = min(COVERAGE_MAX_FRAMES, max(COVERAGE_MIN_FRAMES, (hi - lo) // COVERAGE_STEP_MS))
+    return [int(lo + (hi - lo) * (i + 0.5) / n) for i in range(n)]
+
+
+@dataclass(frozen=True)
+class Coverage:
+    sampled: int          # frames in the uniform grid (denominator)
+    matched: int          # clear frames reading exactly the approved value
+    absent: int           # frames where the observer reports no such subject/text
+    unreadable: int       # partial / cannot-determine frames (could be either way)
+    contradicted: int     # clear frames reading a different value
+    fraction_low: float   # matched / sampled
+    fraction_high: float  # (matched + unreadable + contradicted) / sampled: every doubtful frame a misread
+    first_match_ms: int | None
+    last_match_ms: int | None
+    missing_ms: tuple[int, ...]  # frame times with the value clearly absent or different
+
+    def as_dict(self) -> dict:
+        return {k: (list(v) if isinstance(v, tuple) else v) for k, v in self.__dict__.items()}
+
+
+def decide_coverage(comparator: str, expected: str, frames: list[FrameReading], *, sampled: int,
+                    min_coverage: float, localized_values: list[str]) -> tuple[Verdict, Coverage]:
+    """The approved value must be visible in >= min_coverage of a uniform frame grid over the scope.
+
+    PASS: matched/sampled >= min_coverage and no clear contradiction.
+    FAIL: the value is demonstrably shown (>= 1 clear match, so the observer can read it), yet even counting every
+          unreadable or differently-read frame as a misread match the fraction stays below min_coverage, with >= 2
+          frames where the observer reports no such text/subject at all;
+          or the existing exact-value FAIL rule (consistent clear contradiction, no match) holds.
+    Everything else UNCERTAIN. Frames the model did not return count as unreadable, never as matches.
+    This is a fraction of SAMPLED frames, not of decoded frames; events shorter than the grid step can be missed.
+    """
+    norm = normalize_text if comparator == "exact_text_nfc" else (lambda s: s.strip().lower())
+    exp = norm(expected)
+    match, absent, unreadable, wrong = [], [], [], []
+    for f in frames:
+        value = (f.value or "").strip()
+        if f.subject_visible and f.visibility == "clear" and value and value != CANNOT_DETERMINE:
+            (match if norm(value) == exp else wrong).append(f)
+        elif (not f.subject_visible) or (f.visibility == "clear" and not value):
+            absent.append(f)
+        else:
+            unreadable.append(f)
+    unreadable_n = len(unreadable) + max(0, sampled - len(frames))
+    cov = Coverage(sampled=sampled, matched=len(match), absent=len(absent), unreadable=unreadable_n,
+                   contradicted=len(wrong), fraction_low=len(match) / sampled,
+                   fraction_high=(len(match) + unreadable_n + len(wrong)) / sampled,
+                   first_match_ms=min((f.t_ms for f in match), default=None),
+                   last_match_ms=max((f.t_ms for f in match), default=None),
+                   missing_ms=tuple(sorted(f.t_ms for f in absent + wrong)))
+    ids = tuple(f.evidence_id for f in match + absent + wrong)
+    observed_values = sorted({f.value for f in match + wrong})
+    observed = " | ".join(observed_values) if observed_values else None
+    summary = (f"coverage {len(match)}/{sampled} sampled frames ({cov.fraction_low:.0%}, at most "
+               f"{cov.fraction_high:.0%} if every unreadable or differing frame were a misread); required "
+               f"{min_coverage:.0%}; "
+               f"{len(absent)} without it, {len(wrong)} with a different value, {unreadable_n} unreadable.")
+    if match and not wrong and cov.fraction_low >= min_coverage:
+        return Verdict("PASS", observed, ids, summary), cov
+    if not match:
+        base = decide(comparator, expected, frames, min_items=1, localized_values=localized_values)
+        if base.status == "FAIL":
+            return Verdict("FAIL", base.observed, base.evidence_ids, summary + " " + base.rationale), cov
+        return Verdict("UNCERTAIN", observed, ids,
+                       summary + " Approved value not read in any sampled frame; absence from samples is not "
+                       "proof that it is never shown."), cov
+    if cov.fraction_high < min_coverage and len(absent) >= 2:
+        where = ", ".join(f"{t / 1000:.2f}s" for t in sorted(f.t_ms for f in absent)[:8])
+        return Verdict("FAIL", observed, ids,
+                       summary + f" Shown for too little of its window; missing at {where}."), cov
+    return Verdict("UNCERTAIN", observed, ids, summary + " Coverage cannot be established either way."), cov
+
+
 def numeric_status(actual: int | float, expected: str, tolerance: int | float,
                    relation: str = "equals", resolution: float = 0) -> str:
     """Compare a measurement interval against an approved numeric requirement."""

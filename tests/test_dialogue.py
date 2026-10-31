@@ -38,7 +38,8 @@ class FakeScribe:
         self.transcript, self.outcome, self.word_timestamps = transcript, outcome, word_timestamps
         self.traces = []
 
-    def transcribe_wav(self, *, purpose, **_):
+    def transcribe_wav(self, *, purpose, language_code=None, **_):
+        self.language_codes = [*getattr(self, "language_codes", []), language_code]
         trace = {"trace_id": f"tr-{uuid.uuid4().hex[:8]}", "provider": "elevenlabs",
                  "model": "scribe_v2", "purpose": purpose, "outcome": self.outcome,
                  "cost_usd": 0.000061, "external_cost_usd": 0.000061,
@@ -51,13 +52,14 @@ class FakeScribe:
         return CallResult(self.outcome == "ok", parsed, trace, self.outcome)
 
 
-def assertion(aid, start, end, expected="Xin chào", *, double=True, allow_repeat=False):
+def assertion(aid, start, end, expected="Xin chào", *, double=True, allow_repeat=False, language=None):
+    obs = {"kind": "dialogue", "subject": "the scoped speaker", "attribute": "spoken words",
+           "comparator": "dialogue_nfc", "double_transcription": double}
+    if language:
+        obs["language_bias"] = language
     return {"assertion_id": aid, "source_pointer": f"/script/{aid}", "target_asset_id": "delivery",
             "predicate": "spoken line matches locked script", "expected": expected, "allow_repeat": allow_repeat,
-            "scope": {"start_ms": start, "end_ms": end},
-            "observation": {"kind": "dialogue", "subject": "the scoped speaker",
-                            "attribute": "spoken words", "comparator": "dialogue_nfc",
-                            "double_transcription": double}}
+            "scope": {"start_ms": start, "end_ms": end}, "observation": obs}
 
 
 def contract(*assertions):
@@ -154,6 +156,16 @@ def test_pipeline_scribe_vote_timestamps_and_external_cost(tmp_path):
     assert "word-level ASR timing supplied" in row["limitations"][0]
     assert env["cost"]["external_cost_usd"] == pytest.approx(0.000061)
     assert env["cost"]["meta_budgeted_cost_usd"] == 0
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="needs ffmpeg")
+def test_pipeline_sends_contract_language_to_scribe(tmp_path):
+    scribe = FakeScribe("hello there")
+    env = _run(tmp_path, [assertion("en", 0, 1000, "Hello there", double=False, language=["English"]),
+                          assertion("vi", 1500, 2500, "hello there", double=False, allow_repeat=True)],
+               {"dialogue:en:biased": "hello there", "dialogue:vi:biased": "hello there"}, scribe=scribe)
+    assert sorted(scribe.language_codes) == ["eng", "vie"]  # default contract language stays Vietnamese
+    assert {row["status"] for row in env["checks"]} == {"PASS"}
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="needs ffmpeg")

@@ -47,9 +47,11 @@ All numbers below come from live runs recorded in [`docs/BUILD_STATUS.md`](docs/
 | Long video | 2-minute clip, timestamps in minute 2 mapped correctly (**$0.076**). 5-minute files: upload, seek and full pipeline verified without paid calls. A pre-run cost plan shrinks audits to the remaining configured budget (5-min film, full contract: est. $2.06; not yet run live) |
 | Budget stop | Owner clip with the run cap lowered to $0.30: spent $0.259; both audits UNCERTAIN ("18 of 27 calls not made") instead of being discarded, never PASS. Keeping a confirmed FAIL through a budget stop is covered by tests only |
 | Evidence UI | Clicking a finding seeks the player into the evidence interval (Playwright, Firefox + WebKit) |
+| 2D cartoon calibration (one film, 211 s, sha256 `6298bf55…`) | Full contract (24 exact-text, 52 dialogue, 4 prop/character, both audits): **$2.10** Meta + $0.011 Scribe, 580 s. Against 17 defects from two independent blind model audits (not owner-confirmed): **1/5 majors, 1/12 minors** caught (a prop held by an ownerless hand, blind via the artifact scan; a prop disappearing, via a declared check); 2/10 of the defects that are visual at all. 3 false blocking findings (a look-alike pattern read as "nothing", an invented name spelled differently by both ASRs, a prop "scale change"), 4 unresolved. 24/24 text assertions and 44/52 dialogue lines PASS; the 7 dialogue UNCERTAINs were ASR noise |
+| Key-text coverage (`min_coverage`) | Same film, 24 text assertions with a 90 % rule: **$0.43**, 157 s; 22 PASS at 100 % of 5–16 uniform frames; 2 FAIL where the contract window started before the text was meant to appear (first readable frame 1.15 s and 1.06 s into the window), i.e. correct timing, over-strict contract |
 
-Test suite: **123 tests** (CI runs them on every push: `.github/workflows/ci.yml`) (seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
-Meta adapter failure semantics, artifact-scan and continuity-audit rules). These test our logic, **not** video-understanding accuracy.
+Test suite: **363 tests** (CI runs them on every push: `.github/workflows/ci.yml`) (seed contract/policy, API + Postgres + job leases + atomic budget, pipeline plumbing,
+Meta adapter failure semantics, artifact-scan, continuity-audit, dialogue/ASR voting and text-coverage rules). These test our logic, **not** video-understanding accuracy.
 
 ## How it works
 
@@ -164,7 +166,7 @@ measurement of any commercial continuity checker**, so we make no comparative cl
 
 ## Limitations
 
-- **No accuracy benchmark yet.** Two clips, a handful of assertions. Precision/recall, defect-escape rate and
+- **No accuracy benchmark yet.** Three clips, a handful of assertions. Precision/recall, defect-escape rate and
   comparison with a human or another model are unmeasured.
 - **Most recorded live runs predate the latest evaluator changes** (versions are stamped in every report); later
   changes were verified with unit tests and the specific live reruns listed in BUILD_STATUS.
@@ -175,10 +177,18 @@ measurement of any commercial continuity checker**, so we make no comparative cl
   routed to human review.
 - **Run-to-run variance.** The same video surfaced 4 or 5 of 8 labelled defects on different full runs; a
   single clean run is not proof of a clean film.
+- **Low recall on 2D cartoon story defects.** On one 211 s cartoon it caught 2 of 17 audit-labelled defects
+  (2 of the 10 that are visual). It misses props popping in at a cut (pencil, thought-bubble items), pose pops,
+  caption-over-character overlaps and everything non-visual (voice pitch, pacing, teaching). Its continuity audit
+  confirmed 3 "scale change" findings on a cartoon that cheats scale between wides and close-ups; treat them as
+  review items. Exact-text checks read the words, not their placement.
+- **Key-text coverage is a fraction of sampled frames** (uniform grid, 4–16 frames per window), not of every
+  decoded frame; its window must come from the contract (e.g. a measured subtitle file). ASR word timestamps are
+  not yet used to place it.
 - **Continuity is keyframe-based.** Two keyframes per shot; changes inside a shot between keyframes, dissolves
   and contradictions between distant batches of a long film can be missed.
 - **Not yet in the pipeline:** SAM tracking (would allow measured size ratios instead of judged ones),
-  embedding similarity as a cheap pre-filter, speech/dialogue checks, lip sync, story-time vs edit-time, caching.
+  embedding similarity as a cheap pre-filter, lip sync, story-time vs edit-time, caching.
 - **Repairs:** only a deterministic FFmpeg caption-composite executor exists; generative shot regeneration is a
   typed action without an executor.
 - Single tenant, static API token; the API must stay on a private network.

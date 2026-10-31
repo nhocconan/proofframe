@@ -18,6 +18,18 @@ from .meta import CallResult
 SCRIBE_MODEL = "scribe_v2"
 SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 SCRIBE_USD_PER_HOUR = 0.22
+# Contract language names (ObservationSpec.language_bias) -> ISO 639-3 codes Scribe accepts.
+# Unknown names send no code (Scribe auto-detects); free-text bias is never forwarded.
+LANGUAGE_CODES = {"vietnamese": "vie", "english": "eng"}
+
+
+def scribe_language_code(language_bias) -> str | None:
+    """First contract language with a known ISO 639-3 code, else None (auto-detect)."""
+    for name in language_bias or ():
+        code = LANGUAGE_CODES.get(str(name).strip().lower())
+        if code:
+            return code
+    return None
 
 
 @dataclass
@@ -40,11 +52,17 @@ class ElevenLabsScribe:
         return cls(api_key=key, **kwargs) if key else None
 
     def transcribe_wav(self, *, audio: Path, duration_ms: int,
-                       language_bias: list[str] | None = None, purpose: str) -> CallResult:
-        """Transcribe one already-scoped WAV; approved text/language bias is never sent."""
-        fields = {"model_id": SCRIBE_MODEL, "language_code": "vie",
-                  "timestamps_granularity": "word", "diarize": "false",
+                       language_bias: list[str] | None = None, language_code: str | None = None,
+                       purpose: str) -> CallResult:
+        """Transcribe one already-scoped WAV; approved text and free-text bias are never sent.
+
+        `language_code` is the contract's declared language as an ISO 639-3 code (see
+        scribe_language_code); None lets Scribe auto-detect. It was hard-coded to "vie" before
+        pf-verify-0.19, which forced English dialogue through a Vietnamese decoder."""
+        fields = {"model_id": SCRIBE_MODEL, "timestamps_granularity": "word", "diarize": "false",
                   "tag_audio_events": "false"}
+        if language_code:
+            fields["language_code"] = language_code
         digest = hashlib.sha256(json.dumps(fields, sort_keys=True).encode()).hexdigest()
         trace = {"trace_id": f"tr-{uuid.uuid4().hex[:12]}", "provider": "elevenlabs",
                  "model": SCRIBE_MODEL, "endpoint": "/v1/speech-to-text", "purpose": purpose,

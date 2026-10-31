@@ -131,6 +131,12 @@ function plainWhy(i: Item, nFrames: number): string {
   const c = i.check;
   if (c.findings !== undefined) return "";
   if (c.technical_measurement) return c.rationale;
+  if (c.coverage) {
+    const cv = c.coverage;
+    const share = `“${i.expected}” read in ${cv.matched} of ${cv.sampled} evenly spaced frames (${Math.round(cv.fraction_low * 100)} %)`;
+    const gaps = cv.missing_ms.length ? `; missing or different at ${cv.missing_ms.slice(0, 6).map((t) => (t / 1000).toFixed(2) + " s").join(", ")}` : "";
+    return `${share}${gaps}.`;
+  }
   if (i.kindLabel === "File check") return c.status === "PASS" ? "File metadata matches the requirement." : `File metadata: ${c.rationale}`;
   const seen = i.seen ?? "nothing readable";
   switch (c.status) {

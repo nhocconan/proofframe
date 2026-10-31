@@ -12,6 +12,9 @@ export type Check = {
   evidence_ids: string[]; trace_ids: string[]; rationale: string; limitations: string[];
   regression: Regression | null;
   technical_measurement?: { value: number; intervals: Interval[]; limitations: string[] };
+  coverage?: { sampled: number; matched: number; absent: number; unreadable: number; contradicted: number;
+               fraction_low: number; fraction_high: number; first_match_ms: number | null;
+               last_match_ms: number | null; missing_ms: number[] };
 };
 export type Evidence = {
   evidence_id: string; asset_id: string; kind: "frame" | "clip" | "metadata" | "scan" | "audio" | "reference";

@@ -24,6 +24,7 @@ COST = {  # USD per call, measured averages (run-ee24dd80868649a4b3b1)
     "asr_minute": 0.0024,
 }
 MARGIN = 1.10
+CONFIRM_FRAMES = 6  # frames behind the measured "confirm" average (pipeline.MAX_FRAMES)
 # Reductions in order of least detection value lost (registry pairs and caps first, adjacent pairs never).
 STEPS = [
     ("max_registry_pairs", 6, "long-range registry pairs 12 → 6"),
@@ -73,6 +74,7 @@ class Workload:
     scan_spans_ms: list[int] = field(default_factory=list)       # one entry per artifact scan
     continuity_shots: list[list[tuple[int, int]]] = field(default_factory=list)  # one entry per audit
     asr_minutes: list[int] = field(default_factory=list)  # one entry per transcription pass
+    coverage_frames: list[int] = field(default_factory=list)  # grid size of each min_coverage assertion
 
 
 def _minutes(span_ms: int) -> int:
@@ -83,6 +85,8 @@ def estimate(w: Workload, p: RunPlan) -> float:
     c = COST
     total = sum(m * c["localize_minute"] + c["confirm"] for m in w.assertion_minutes)
     total += sum(m * c["asr_minute"] for m in w.asr_minutes)
+    # a coverage grid confirms up to 16 frames instead of ~6: scale the confirmation by frame count
+    total += sum(max(0, n - CONFIRM_FRAMES) / CONFIRM_FRAMES * c["confirm"] for n in w.coverage_frames)
     for span in w.scan_spans_ms:
         grid = max(1, span // p.grid_step_ms)
         total += _minutes(span) * c["hunt_minute"] + -(-grid // anomaly.GRID_BATCH) * c["grid"]

@@ -23,9 +23,10 @@ from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
 from . import anomaly, continuity, dialogue
-from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, numeric_status, technical
+from .compare import (CANNOT_DETERMINE, FrameReading, classify, coverage_grid, decide, decide_coverage,
+                      numeric_status, technical)
 
-EVALUATOR_VERSION = "pf-verify-0.18(dialogue-asr,scribe-vote,number-canon,scoped-continuity,scratch-cleanup)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+EVALUATOR_VERSION = "pf-verify-0.19(dialogue-asr,scribe-vote,scribe-language,number-canon,scoped-continuity,scratch-cleanup,text-coverage)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
 # 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
 # 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared; 0.8: cross-shot continuity audit; 0.9: pairwise + swapped-order adjudication; 0.10: intrinsic long-range checks, insert bridging; 0.11: adjudicate up to 24 suspicions; 0.12: assertions evaluated concurrently; 0.13: pre-run budget plan, partial results on a budget stop
 VIDEO_FPS = 1.0
@@ -192,6 +193,8 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                 pass  # the audit itself re-runs detection and reports the error on its own row
         else:
             workload.assertion_minutes.append(max(1, -(-(hi_c - lo_c) // 60_000)))
+            if o.min_coverage is not None:
+                workload.coverage_frames.append(len(coverage_grid(lo_c, hi_c)))
     remaining = getattr(budget, "remaining", None)
     plan = fit_plan(workload, remaining(run_id=run_id) if callable(remaining) else None)
 
@@ -350,8 +353,10 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                 provider_errors: list[tuple[str, str]] = []
                 word_timestamps = False
                 if scribe is not None:
+                    from ..providers.elevenlabs import scribe_language_code
                     scribe_result = scribe.transcribe_wav(
                         audio=wav, duration_ms=hi - lo, language_bias=None,
+                        language_code=scribe_language_code(obs.language_bias),
                         purpose=f"dialogue:{check.assertion_id}:scribe")
                     row["trace_ids"].append(scribe_result.trace["trace_id"])
                     if scribe_result.ok:
@@ -432,7 +437,12 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                     if seg.get("subject_visible") and seg.get("visibility") == "clear":
                         loc_values.append(seg.get("value", ""))
             times, how = _frame_times(segments, lo, hi)
-            if obs.temporal == "occurs":
+            if obs.min_coverage is not None:
+                # coverage needs an unbiased denominator: a uniform grid, never model-suggested times
+                times = coverage_grid(lo, hi)
+                how = (f"uniform coverage grid: {len(times)} frames, one per {(hi - lo) / len(times):.0f} ms "
+                       "(model hints not used)")
+            elif obs.temporal == "occurs":
                 # events can be brief: never rely only on model hints; add a uniform grid over the scope
                 times = sorted(set(times) | set(_dense_grid(lo, hi)))
                 how += f" + uniform grid ({len(_dense_grid(lo, hi))} frames) for event semantics"
@@ -472,8 +482,13 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                                              subject_visible=bool(fr.get("subject_visible")),
                                              visibility=fr.get("visibility", "not_visible"),
                                              value=fr.get("value", "")))
-            verdict = decide(obs.comparator, check.expected, readings, min_items=check.coverage.minimum_items,
-                             localized_values=loc_values, temporal=obs.temporal)
+            coverage = None
+            if obs.min_coverage is not None:
+                verdict, coverage = decide_coverage(obs.comparator, check.expected, readings, sampled=len(times),
+                                                    min_coverage=obs.min_coverage, localized_values=loc_values)
+            else:
+                verdict = decide(obs.comparator, check.expected, readings, min_items=check.coverage.minimum_items,
+                                 localized_values=loc_values, temporal=obs.temporal)
             frame_notes = "; ".join(f"{r.label}@{r.t_ms/1000:.1f}s:{r.visibility}:{r.value!r}" for r in readings)
             used = [frame_ev[r.label] for r in readings if r.evidence_id in verdict.evidence_ids] or list(frame_ev.values())
             row.update(observed=verdict.observed, evidence_ids=list(verdict.evidence_ids),
@@ -485,6 +500,10 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                                     "frame confirmation uses the same model family; agreement is not independent proof"],
                        localized_segments=[{k: s[k] for k in ("abs_start_ms", "abs_end_ms", "subject_visible",
                                                               "visibility", "value", "notes")} for s in segments])
+            if coverage is not None:
+                row["coverage"] = coverage.as_dict()
+                row["limitations"].append("coverage is a fraction of uniformly SAMPLED frames, not of every "
+                                          "decoded frame; a gap shorter than one grid step can be missed")
             results[check.assertion_id] = CheckResult(
                 assertion_id=check.assertion_id, status=Status(verdict.status),
                 evidence_ids=verdict.evidence_ids, rationale=verdict.rationale[:2000],

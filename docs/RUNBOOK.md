@@ -36,6 +36,11 @@ with a basic-auth middleware. Never route the API publicly (anyone reaching it c
    - Optional `scope` (ms) limits a check to a window — cheaper and more precise. No scope = whole video.
    - `category_equals` needs `expected` inside `vocabulary`; `exact_text_nfc` compares exact text (Unicode NFC,
      dash/quote variants normalised, letters/diacritics/case exact).
+   - Held captions (a key sentence that must stay readable for its whole spoken line): add `"min_coverage": 0.9`
+     to the observation. ProofFrame then reads a uniform grid of 4–16 frames (one per 250 ms) over the scope and
+     PASSes only if the exact text is read in ≥ 90 % of them. FAIL needs ≥ 1 readable match plus ≥ 2 frames with no
+     such text, so misreads never FAIL; the report row carries `coverage` (matched/sampled, first/last match,
+     missing times). Scope it to the spoken window from a measured subtitle file, trimmed ~250 ms at each end.
    - Events/state changes (something breaks, appears, is handed over): set `"temporal": "occurs"` — a miss in sampled
      frames is UNCERTAIN, never FAIL, and a dense 0.5 s frame grid is added. Default `throughout` = must hold in every clear frame.
    - Keep the `gen-artifacts` (undeclared AI defects inside shots) and `continuity` (cross-shot props, wardrobe, set,
@@ -95,7 +100,9 @@ Whole-programme loudness requires a whole-programme scope. Do not average LUFS f
 `demo/contract_dialogue_qc.json` is a template, not approved intent. For each locked script line, add one
 `kind: "dialogue"` assertion against the delivery asset, use the speaker description as `subject`, put the
 exact approved line in `expected`, and bind `scope` to that line's source-time shot/scene interval. The ASR
-request receives the scoped audio and optional `language_bias`, never the expected line. Double transcription
+request receives the scoped audio and optional `language_bias`, never the expected line. Set `language_bias`
+(default `["Vietnamese"]`) on every assertion of a non-Vietnamese film: Scribe receives it as an ISO 639-3 code
+(`vie`, `eng`; other names → auto-detect). Double transcription
 is on by default; set `double_transcription: false` only when the contract deliberately accepts the weaker route.
 
 PASS means the normalized transcript matches the locked line. FAIL means two agreeing transcriptions clearly

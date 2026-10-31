@@ -105,6 +105,9 @@ class ObservationSpec(Record):
     # throughout: the attribute must hold in every clear sampled frame of the scope (state).
     # occurs: an event/state reached at some point in the scope; sampled misses are UNCERTAIN, never FAIL.
     temporal: Literal["throughout", "occurs"] = "throughout"
+    # coverage: the approved value must be visible in at least this fraction of a uniform frame grid over the
+    # scope (e.g. 0.9 = a key caption held for >= 90 % of its spoken line). A fraction of SAMPLED frames.
+    min_coverage: float | None = Field(default=None, gt=0, le=1)
     double_transcription: bool = True
     language_bias: tuple[Nonempty, ...] = Field(default=("Vietnamese",), min_length=1)
 
@@ -115,6 +118,8 @@ class ObservationSpec(Record):
             data.pop("temporal")  # keep fingerprints of pre-existing contracts unchanged
         if data.get("technical_relation") == "equals":
             data.pop("technical_relation")
+        if data.get("min_coverage") is None:
+            data.pop("min_coverage", None)
         if data.get("double_transcription") is True:
             data.pop("double_transcription")
         if data.get("language_bias") == ("Vietnamese",) or data.get("language_bias") == ["Vietnamese"]:
@@ -144,6 +149,12 @@ class ObservationSpec(Record):
             self.kind != "technical" or self.technical_metric == "has_audio"
         ):
             raise ValueError("directional relations require a numeric technical check")
+        if self.min_coverage is not None and (
+            self.kind not in ("on_screen_text", "visual_attribute") or self.temporal != "throughout"
+        ):
+            raise ValueError("min_coverage applies to on-screen text or visual attributes held throughout a scope")
+        if self.min_coverage is not None and not math.isfinite(self.min_coverage):
+            raise ValueError("min_coverage must be finite")
         if self.comparator == "category_equals" and not self.vocabulary:
             raise ValueError("category comparison needs a closed vocabulary")
         return self

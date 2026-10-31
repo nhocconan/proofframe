@@ -6,7 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from proofframe.providers.elevenlabs import ElevenLabsScribe, SCRIBE_URL
+from proofframe.providers.elevenlabs import ElevenLabsScribe, SCRIBE_URL, scribe_language_code
 
 
 class FakeClient:
@@ -37,7 +37,7 @@ def test_scribe_request_shape_word_timestamps_and_external_cost(tmp_path):
     ]})
     scribe = ElevenLabsScribe(api_key="test-key", client=client)
     result = scribe.transcribe_wav(audio=_wav(tmp_path), duration_ms=3_600_000,
-                                   language_bias=["must-not-be-sent"], purpose="test")
+                                   language_bias=["must-not-be-sent"], language_code="vie", purpose="test")
 
     assert result.ok and result.parsed["wordTimestampsAvailable"] is True
     assert result.trace["external_cost_usd"] == pytest.approx(0.22)
@@ -51,6 +51,19 @@ def test_scribe_request_shape_word_timestamps_and_external_cost(tmp_path):
     assert kwargs["files"]["file"][2] == "audio/wav"
     assert "must-not-be-sent" not in json.dumps(kwargs["data"])
     assert not hasattr(scribe, "budget")  # external cost cannot reserve/settle the Meta ledger
+
+
+def test_scribe_language_code_follows_contract_language_not_a_fixed_default(tmp_path):
+    # pf-verify-0.18 sent language_code="vie" for every contract, so English dialogue was decoded as
+    # Vietnamese. No declared language with a known code -> no field (Scribe auto-detects).
+    assert scribe_language_code(["English"]) == "eng"
+    assert scribe_language_code(("Vietnamese",)) == "vie"
+    assert scribe_language_code(["Klingon", " english "]) == "eng"
+    assert scribe_language_code(["Klingon"]) is None and scribe_language_code(None) is None
+    client = FakeClient({"text": "hello", "language_code": "eng", "language_probability": 0.9, "words": []})
+    ElevenLabsScribe(api_key="k", client=client).transcribe_wav(
+        audio=_wav(tmp_path), duration_ms=1000, purpose="test")
+    assert "language_code" not in client.call[1]["data"]
 
 
 @pytest.mark.parametrize("payload", [
