@@ -1,0 +1,351 @@
+{
+ "manifest_sha256": "3df16b52826a89f7eaabb73f326447eb5cbb415b4855d1e7b34dccbd57662c1c",
+ "clips": 17,
+ "estimated_usd": 0.282853,
+ "per_class": {
+  "artifact": {
+   "labels": 4,
+   "labelled": 4,
+   "checked": 4,
+   "caught": 0,
+   "not_checked": []
+  },
+  "new_props": {
+   "labels": 3,
+   "labelled": 3,
+   "checked": 3,
+   "caught": 1,
+   "not_checked": []
+  },
+  "scene_changed": {
+   "labels": 3,
+   "labelled": 3,
+   "checked": 3,
+   "caught": 0,
+   "not_checked": []
+  }
+ },
+ "findings_by_check": {
+  "gen-artifacts": {
+   "findings": 0,
+   "on_clips_without_label": 0
+  },
+  "continuity": {
+   "findings": 0,
+   "on_clips_without_label": 0
+  },
+  "reference-match": {
+   "findings": 1,
+   "on_clips_without_label": 0
+  }
+ },
+ "gen_artifacts_errors": 1,
+ "rows": [
+  {
+   "clip_id": "flux3-i2v",
+   "run_id": "run-298ec1938dbb48b0ab43",
+   "mode": "i2v",
+   "duration_s": 5.042,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.020789
+  },
+  {
+   "clip_id": "grok-lite-i2v",
+   "run_id": "run-0f11d0c325c84ad79b65",
+   "mode": "i2v",
+   "duration_s": 1.042,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.020202
+  },
+  {
+   "clip_id": "grok-lite-t2v",
+   "run_id": "run-9f698e26c6f94eee9bbe",
+   "mode": "t2v",
+   "duration_s": 1.042,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [],
+   "artifact_label_disputed": true,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.010797
+  },
+  {
+   "clip_id": "grok-i2v",
+   "run_id": "run-862f67b8d3734df7819b",
+   "mode": "i2v",
+   "duration_s": 1.042,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.018107
+  },
+  {
+   "clip_id": "grok-t2v",
+   "run_id": "run-b58da592476141968ade",
+   "mode": "t2v",
+   "duration_s": 1.042,
+   "decision": "REVIEW",
+   "statuses": {
+    "gen-artifacts": "ERROR",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.033986
+  },
+  {
+   "clip_id": "hailuo3max-i2v",
+   "run_id": "run-5f105c8177c149c7a82b",
+   "mode": "i2v",
+   "duration_s": 5.184,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "PASS"
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.020266
+  },
+  {
+   "clip_id": "hailuo3max-t2v",
+   "run_id": "run-ff84b6f04b9145f2abed",
+   "mode": "t2v",
+   "duration_s": 5.184,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.009313
+  },
+  {
+   "clip_id": "happyhorse-i2v",
+   "run_id": "run-54287a82e25d4c3c8c57",
+   "mode": "i2v",
+   "duration_s": 3.163,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "PASS"
+   },
+   "labels": [
+    "artifact",
+    "scene_changed"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.018802
+  },
+  {
+   "clip_id": "heygen-t2v",
+   "run_id": "run-4aff111b5c6b4be09c00",
+   "mode": "t2v",
+   "duration_s": 5,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [
+    "artifact"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.012088
+  },
+  {
+   "clip_id": "omni-i2v",
+   "run_id": "run-25cfca7a4df540a9b6c1",
+   "mode": "i2v",
+   "duration_s": 3.029,
+   "decision": "REVIEW",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "UNCERTAIN"
+   },
+   "labels": [
+    "new_props"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 1,
+   "continuity_vacuous": true,
+   "cost_usd": 0.022096
+  },
+  {
+   "clip_id": "omni-t2v",
+   "run_id": "run-b034755ab5424bd5a540",
+   "mode": "t2v",
+   "duration_s": 3.029,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.011539
+  },
+  {
+   "clip_id": "seedance-mini-t2v",
+   "run_id": "run-9eadd01b63224cc48770",
+   "mode": "t2v",
+   "duration_s": 4.096,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.009357
+  },
+  {
+   "clip_id": "seedance2-t2v",
+   "run_id": "run-ae41fffce77e48249fd3",
+   "mode": "t2v",
+   "duration_s": 4.064,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [
+    "artifact"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.010606
+  },
+  {
+   "clip_id": "seedance25-t2v",
+   "run_id": "run-d5f4860a3e8b4dedb4cf",
+   "mode": "t2v",
+   "duration_s": 4.064,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.009616
+  },
+  {
+   "clip_id": "wan3-prime-i2v",
+   "run_id": "run-ad4dd02ac69042ddb248",
+   "mode": "i2v",
+   "duration_s": 2.02,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "PASS"
+   },
+   "labels": [
+    "artifact",
+    "new_props",
+    "scene_changed"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.023431
+  },
+  {
+   "clip_id": "wan3-prime-t2v",
+   "run_id": "run-e973a89be30d4d4588ac",
+   "mode": "t2v",
+   "duration_s": 2.02,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": null
+   },
+   "labels": [],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.010055
+  },
+  {
+   "clip_id": "wan3-i2v",
+   "run_id": "run-99b1c576a49d4c76952c",
+   "mode": "i2v",
+   "duration_s": 2.02,
+   "decision": "ELIGIBLE",
+   "statuses": {
+    "gen-artifacts": "PASS",
+    "continuity": "NOT_APPLICABLE",
+    "reference-match": "PASS"
+   },
+   "labels": [
+    "new_props",
+    "scene_changed"
+   ],
+   "artifact_label_disputed": false,
+   "findings": 0,
+   "continuity_vacuous": true,
+   "cost_usd": 0.021803
+  }
+ ],
+ "scope": "in-sample; single-shot synthetic clips, --video-only. caught/checked/labelled: labels whose check did not finish (ERROR, NOT_CHECKED, missing, continuity with 0 shot pairs) are excluded from `checked` and listed in `not_checked`"
+}

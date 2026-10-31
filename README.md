@@ -75,9 +75,36 @@ and neither changes the number: `--video-only` gives the continuity pass no refe
 are not testable in this mode (the clip is the only evidence); and the scan is built for cross-shot and within-shot defects
 in longer film, not 2-5 s single shots. A reference-image check mode is the thing this run says is missing.
 
-Defect found by the run: clips shorter than the artifact scan's 3-4 s frame grid (all four 1.04 s clips) get one hunt
-pass, no frame evidence, and the check ends ERROR ("PASS and FAIL require inspectable evidence references"): it fails
-closed, as designed, but the scan cannot judge sub-1.3 s clips. Not fixed in this commit (no tuning before scoring).
+Defect found by the run: clips shorter than the artifact scan's 3-4 s frame grid (all four 1.04 s clips) got no frame
+evidence and ended ERROR (fails closed). Fixed afterwards (grid shrinks to first/middle/last inside the video stream).
+
+### Second paid run after the fixes (v2, 2026-10-31)
+
+Three changes, all made after v1 was scored and **evaluated on the same 17 clips, so v2 is in-sample**: (1) the short-clip
+grid fix; (2) the continuity audit no longer reports PASS when it compared 0 shot pairs (single-shot clips are
+`NOT_APPLICABLE` under an exclusion written into the auto-contract before the run); (3) a new `reference-match` check:
+`--video-only --reference still.png` sends the still plus first/middle/last frames and asks for new props, missing props
+and setting changes. Findings go to REVIEW, never FAIL (one model family). The scorer was changed before the run so a
+check that did not run (ERROR, NOT_CHECKED, 0 shot pairs) leaves the recall denominator instead of counting as a miss.
+Same manifest (sha256 `3df16b52…`), same `muse-spark-1.3`, per-run cap $0.70. **Cost: $0.2829 for 17 runs.**
+Result in [`validation/runs/probe-2026-10-31-model-scan-v2.json`](validation/runs/probe-2026-10-31-model-scan-v2.json).
+
+| Label class | v1 caught / checked / labelled | v2 caught / checked / labelled | v2 false flags |
+|---|---|---|---|
+| generation artifact | 0 / 4 / 4 | 0 / 4 / 4 | 0 |
+| new props vs the still | 0 / 0 / 3 | **1 / 3 / 3** | 0 |
+| scene changed vs the still | 0 / 0 / 3 | 0 / 3 / 3 | 0 |
+
+- The catch: omni i2v, "smartphone held in man's hand, not visible in REF", 1.5-3.0 s (the labelled pen-to-phone swap).
+- A miss we looked at: wan3 i2v. A monitor enters frame as the camera pans right, in a region outside the still's
+  borders. The prompt tells the model to ignore framing differences, so whether that counts as a new prop is ambiguous.
+  The prompt was not changed after seeing this.
+- The artifact scan still raises nothing on the 4 labelled clips (0 candidates, so the adjudicator never ran). On
+  1-5 s single shots it is a recall miss at the hunt/grid stage, not over-rejection.
+- The disputed grok-lite t2v clip (a sharp middle band between two blurred bands, a second mug in the top band) passed
+  the artifact scan in v2 (v1: ERROR, no frames); a frame sheet for human labelling is in the operator's private notes.
+- 1 clip (grok-1.5 t2v, 1.04 s) still ended gen-artifacts ERROR: a hunt candidate at 1.0 s was padded to 1.2 s, past the 1.04 s clip end. Fixed afterwards;
+  not re-run.
 
 ### Data handling
 

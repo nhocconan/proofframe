@@ -314,3 +314,13 @@ Commands (exit 0 unless noted):
 - pytest, `proofframe-app:dev`, `--network none`: 354 passed, 22 skipped (Postgres-backed tests), 0 failed.
 
 - Full suite on the final tree against a throwaway Postgres 16 container (`proofframe-app:dev`, `--network host`): **376 passed, 0 failed** (354 passed / 22 skipped without a database). Web code untouched, so no web typecheck.
+
+## Content Engine review follow-up (2026-10-31)
+
+Source: Content Engine review of this branch (items 1-8). Done in this round:
+- Item 1: short clips get first/middle/last grid frames inside the video stream; a clean PASS cites only extracted frames (1359809).
+- Item 2, diagnosis first: none of the 10 labels sat on the 4 ERROR clips; continuity compared 0 shot pairs on every clip (vacuous PASS); no model call received the reference still. Scorer now reports caught/checked/labelled and drops not-run checks from the denominator (e70b7d7). New `reference-match` check, `--video-only --reference` (f5de35d). Single-shot continuity is NOT_APPLICABLE under an exclusion approved in the auto-contract, NOT_CHECKED without one, never PASS.
+- Paid v2 run: 17 clips, $0.2829, per-run cap $0.70, project cap $2.50, manifest sha256 verified. new_props 1/3/3, scene_changed 0/3/3, artifact 0/4/4, 0 false flags. In-sample: the method was built after seeing v1. Details: README, RUN_HISTORY.
+- Bugs found by v2, fixed afterwards and not re-run on paid models: a hunt candidate padded past the clip end (evidence interval start > end); decoded QC scoped to the container instead of the stream (qc-black/freeze ERROR 12 → 0, silence/loudness/true-peak 6 → 1 over the 17 clips, measured with no model). The remaining 1 is heygen's AAC timestamp gap (51 ms), left failing closed.
+- Not done: item 3 (second vendor) skipped for the hackathon by the operator; item 4 human labels pending (frame sheet for grok-lite t2v prepared in `private/labels/`); item 5 needs a held-out clip set; item 6 threshold left at 3 (scaling it by duration on these clips would be tuning on the test set); item 7 needs a screen recording; item 8 ElevenLabs training toggle unconfirmed (`/v1/capabilities` says so).
+- Tests: `docker run --rm --network none -v $PWD:/w -w /w -e PYTHONPATH=/w/src:/w proofframe-app:dev python -m pytest -q -p no:cacheprovider` → 406 passed, 25 skipped (Postgres-backed), 0 failed. Web: `npx tsc --noEmit` in `proofframe-web:dev` → exit 0.

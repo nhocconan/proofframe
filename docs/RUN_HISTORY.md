@@ -38,6 +38,25 @@ billed separately by ElevenLabs and never touches the Meta ledger.
 | 2026-10-31 | run-10718ef1b9cc4f56a3f0 | probe wan3-prime-i2v (2.02 s) | video-only | ELIGIBLE | $0.0143 | gen-artifacts PASS, continuity PASS; 0 findings |
 | 2026-10-31 | run-1c63fe48e1fc41539111 | probe wan3-prime-t2v (2.02 s) | video-only | ELIGIBLE | $0.0146 | gen-artifacts PASS, continuity PASS; 0 findings |
 | 2026-10-31 | run-d7c9887dc446409090bc | probe wan3-i2v (2.02 s) | video-only | ELIGIBLE | $0.0129 | gen-artifacts PASS, continuity PASS; 0 findings |
+| 2026-10-31 | run-298ec1938dbb48b0ab43 | probe v2 flux3-i2v (5.042 s) | video-only + reference | ELIGIBLE | $0.0208 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
+| 2026-10-31 | run-0f11d0c325c84ad79b65 | probe v2 grok-lite-i2v (1.042 s) | video-only + reference | ELIGIBLE | $0.0202 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
+| 2026-10-31 | run-9f698e26c6f94eee9bbe | probe v2 grok-lite-t2v (1.042 s) | video-only | ELIGIBLE | $0.0108 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-862f67b8d3734df7819b | probe v2 grok-i2v (1.042 s) | video-only + reference | ELIGIBLE | $0.0181 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
+| 2026-10-31 | run-b58da592476141968ade | probe v2 grok-t2v (1.042 s) | video-only | REVIEW | $0.0340 | gen-artifacts ERROR, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-5f105c8177c149c7a82b | probe v2 hailuo3max-i2v (5.184 s) | video-only + reference | ELIGIBLE | $0.0203 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
+| 2026-10-31 | run-ff84b6f04b9145f2abed | probe v2 hailuo3max-t2v (5.184 s) | video-only | ELIGIBLE | $0.0093 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-54287a82e25d4c3c8c57 | probe v2 happyhorse-i2v (3.163 s) | video-only + reference | ELIGIBLE | $0.0188 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
+| 2026-10-31 | run-4aff111b5c6b4be09c00 | probe v2 heygen-t2v (5.258 s) | video-only | ELIGIBLE | $0.0121 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-25cfca7a4df540a9b6c1 | probe v2 omni-i2v (3.029 s) | video-only + reference | REVIEW | $0.0221 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match UNCERTAIN; 1 finding(s) |
+| 2026-10-31 | run-b034755ab5424bd5a540 | probe v2 omni-t2v (3.029 s) | video-only | ELIGIBLE | $0.0115 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-9eadd01b63224cc48770 | probe v2 seedance-mini-t2v (4.096 s) | video-only | ELIGIBLE | $0.0094 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-ae41fffce77e48249fd3 | probe v2 seedance2-t2v (4.064 s) | video-only | ELIGIBLE | $0.0106 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-d5f4860a3e8b4dedb4cf | probe v2 seedance25-t2v (4.064 s) | video-only | ELIGIBLE | $0.0096 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-ad4dd02ac69042ddb248 | probe v2 wan3-prime-i2v (2.02 s) | video-only + reference | ELIGIBLE | $0.0234 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
+| 2026-10-31 | run-e973a89be30d4d4588ac | probe v2 wan3-prime-t2v (2.02 s) | video-only | ELIGIBLE | $0.0101 | gen-artifacts PASS, continuity NOT_APPLICABLE; 0 finding(s) |
+| 2026-10-31 | run-99b1c576a49d4c76952c | probe v2 wan3-i2v (2.02 s) | video-only + reference | ELIGIBLE | $0.0218 | gen-artifacts PASS, continuity NOT_APPLICABLE, reference-match PASS; 0 finding(s) |
+
+Probe v2 (after the short-clip grid, single-shot continuity and reference-match changes; i2v clips run with `--reference still.png`): 17 runs, $0.2829 summed from the reports, own fresh ledger capped at $2.50 project / $0.70 per run, plus one ≈ $0.010 format-check run of grok-lite-t2v not scored. Same-session totals for the probe stack: ≈ $0.53.
 
 Budget after the probe-set runs: Meta settled ≈ $28.02 of the $140 cap (≈ $27.78 before + $0.24 for the 17 probe runs, summed from the reports; the probe stack used its own fresh ledger capped at $2.50, so the main ledger was not updated), reserved $0.
 
