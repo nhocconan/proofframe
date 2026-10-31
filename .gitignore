@@ -4,6 +4,10 @@
 !.env.example
 # Owner/client media and anything derived from it
 media/
+# ...but never the web tier media proxy route (web/app/media/**)
+!web/app/media/
+!web/app/media/*/
+!web/app/media/*/*
 *.mp4
 *.mov
 *.mkv

@@ -372,3 +372,25 @@ Source: Content Engine review of this branch (items 1-8). Done in this round:
 - Expect on the next run: about 5 former audio-QC ERRORs on the quiet Grok and flux3 clips now measure, so advisory `qc-loudness` FAILs (at_least -30 LUFS) appear. That is a measurement, not a regression.
 - Deterministic probe re-run on 901f279 (no model, 0 USD): identical to `validation/runs/probe-2026-10-31-deterministic.json` except heygen t2v, whose end moves 5167 → 5250 ms (stream end now includes its 83 ms start offset; values change ≤ 0.16, statuses unchanged; t2v is unscored). README table unaffected.
 - Auto-contract id now carries a digest of the generated checks (`auto-<media>-t<digest>`): a clip scanned under an older template gets a new id instead of a 409 on the running stack. Tests: 408 passed, 25 skipped.
+## Addendum 2026-10-31 (Muse, coordinator session) — web /media proxy fix
+
+BUG: every media reference in the web UI was broken in the deployed stack.
+RunView renders the target <video>, evidence thumbnails and evidence images as
+/media/<sha256> on the web origin, but the Next.js app had no /media route —
+all returned the web 404 page (video player black, thumbnails broken icons).
+The API side was healthy all along: GET /v1/media/<sha256> returns 200 with the
+Bearer token (401 without).
+
+FIX: web/app/media/[id]/route.ts — validates the id as a lowercase sha256,
+proxies through the existing server-side apiFetch (Bearer attached server-side
+only), forwards the Range header, streams the body, and copies
+content-type/length + accept-ranges/content-range. Verified live after rebuild:
+image via :3000/media/<sha> -> 200 image/png; video range request -> 206
+video/mp4; run pages now render the target video first frame and real evidence
+thumbnails. Companion fix: .gitignore gained negations for web/app/media/** —
+the bare media/ rule was silently ignoring the new route directory.
+
+KNOWN EDGE (production hardening list): apiFetch applies a 15s abort timeout
+to the whole fetch including body streaming; fine for loopback thumbnails and
+range-chunked playback, but long/slow media transfers through this proxy
+should get a dedicated no-timeout path before company deployment.
