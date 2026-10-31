@@ -394,3 +394,19 @@ KNOWN EDGE (production hardening list): apiFetch applies a 15s abort timeout
 to the whole fetch including body streaming; fine for loopback thumbnails and
 range-chunked playback, but long/slow media transfers through this proxy
 should get a dedicated no-timeout path before company deployment.
+
+## CI green again: late-start fixture portability (2026-10-31)
+
+GitHub CI (ubuntu-24.04, ffmpeg 6.1, Postgres service) failed exactly one test while
+every local environment passed: test_qc_video_that_starts_late_is_measured. Root cause
+was the mp4 muxer, not the prober and not the product: ffmpeg 7 writes the test
+fixture's -itsoffset as stream start_time 0.083 / duration 2.000, ffmpeg 6.1 writes
+the same request as a negative initial DTS with start_time 0 / duration 2.083, and
+both ffprobe generations read each file identically - so no probe-side measurement
+can recover the intent from a 6.1-muxed mp4. (Two packet-timestamp estimators were
+tried and rejected: they cannot distinguish an edit-list shift from ordinary B-frame
+reorder delay and regressed six extent tests.) The fixture now uses Matroska, which
+stores the offset directly (start_time 0.083 under ffprobe 6.1 and 7), with PCM
+audio so AAC priming does not add a second, negative audio-start pathology.
+media.py is unchanged. Verified: ubuntu-24.04 CI recipe 444 passed / 0 failed;
+dev image (ffmpeg 7) 419 passed / 25 skipped / 0 failed.

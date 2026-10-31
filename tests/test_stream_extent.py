@@ -28,14 +28,15 @@ def _ff(*args):
     subprocess.run(["ffmpeg", "-v", "error", "-y", *args], check=True)
 
 
-def _mp4(path, *, video_s, audio_s=None, tone="sine=frequency=440:sample_rate=48000", video_offset_s=0.0):
+def _mp4(path, *, video_s, audio_s=None, tone="sine=frequency=440:sample_rate=48000", video_offset_s=0.0,
+         audio_codec="aac"):
     """mp4 whose video and audio streams differ in length (audio_s None: no audio stream)."""
     args = []
     if video_offset_s:
         args += ["-itsoffset", str(video_offset_s)]
     args += ["-f", "lavfi", "-i", f"testsrc2=size=160x90:rate=24:duration={video_s}"]
     if audio_s is not None:
-        args += ["-f", "lavfi", "-i", f"{tone}:duration={audio_s}", "-c:a", "aac"]
+        args += ["-f", "lavfi", "-i", f"{tone}:duration={audio_s}", "-c:a", audio_codec]
     _ff(*args, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path))
     return path
 
@@ -136,7 +137,18 @@ def test_qc_measures_when_streams_differ_from_the_container(tmp_path, video_s, a
 
 
 def test_qc_video_that_starts_late_is_measured(tmp_path):
-    clip = _mp4(tmp_path / "c.mp4", video_s=2.0, audio_s=2.0, video_offset_s=0.1)
+    # The late-start fixture is Matroska, not mp4: the mp4 muxer is not portable here.
+    # Measured 2026-10-31: ffmpeg 7's mp4 muxer writes the itsoffset as stream
+    # start_time 0.083 / duration 2.000, but ffmpeg 6.1's mp4 muxer (Ubuntu 24.04, CI)
+    # encodes the same offset as a negative initial DTS with start_time 0 and duration
+    # 2.083 - and BOTH ffprobe generations then agree on 0. No probe-side reading can
+    # recover the intent from the 6.1 file. Matroska stores the offset directly:
+    # start_time 0.083 under both ffprobe 6.1 and 7. The audio is PCM on purpose:
+    # AAC in Matroska adds its priming as a -21 ms audio start, a second pathology
+    # this test does not mean to exercise (the decoded audio QC rightly refuses a
+    # scope that starts before its stream). PCM starts at exactly 0 in both worlds.
+    clip = _mp4(tmp_path / "c.mkv", video_s=2.0, audio_s=2.0, video_offset_s=0.1,
+                audio_codec="pcm_s16le")
     assert media.probe(clip).video_start_ms >= 80
     _, checks = _qc(tmp_path, clip)
     assert checks["qc-black"]["status"] == "PASS" and checks["qc-freeze"]["status"] == "PASS"
