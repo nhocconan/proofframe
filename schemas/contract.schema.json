@@ -284,7 +284,10 @@
                 "freeze_duration_ms",
                 "silence_duration_ms",
                 "integrated_loudness_lufs",
-                "true_peak_dbtp"
+                "true_peak_dbtp",
+                "motion_mean_abs_diff",
+                "motion_max_step",
+                "global_motion_px"
               ],
               "type": "string"
             },

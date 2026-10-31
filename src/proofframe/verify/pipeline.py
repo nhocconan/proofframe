@@ -22,7 +22,7 @@ from proofframe_contracts.policy import evaluate
 from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
-from . import anomaly, continuity, dialogue
+from . import anomaly, continuity, dialogue, motion
 from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, numeric_status, technical
 
 EVALUATOR_VERSION = "pf-verify-0.18(dialogue-asr,scribe-vote,number-canon,scoped-continuity,scratch-cleanup)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
@@ -225,7 +225,9 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                 pr = probes.get(target.asset_id)
                 path = store.path_for(target.sha256)
                 audio_metric = obs.technical_metric in {"integrated_loudness_lufs", "true_peak_dbtp"}
-                if audio_metric or obs.technical_metric in {"black_duration_ms", "freeze_duration_ms", "silence_duration_ms"}:
+                motion_metric = obs.technical_metric in motion.METRICS
+                if audio_metric or motion_metric or obs.technical_metric in {
+                        "black_duration_ms", "freeze_duration_ms", "silence_duration_ms"}:
                     from .technical import scan
                     if pr is None:
                         raise ValueError("decoded technical QC requires an audio or video asset")
@@ -233,7 +235,12 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                     hi = check.scope.end_ms if check.scope else pr.duration_ms
                     if hi > pr.duration_ms:
                         raise ValueError("approved QC scope extends beyond media duration")
-                    if audio_metric:
+                    if motion_metric:
+                        try:
+                            measurement = motion.measure(path, start_ms=lo, end_ms=hi, metric=obs.technical_metric)
+                        except ValueError as exc:  # cannot run on this media/scope: never a PASS
+                            raise _NotChecked(f"{obs.technical_metric} could not be measured: {exc}")
+                    elif audio_metric:
                         from .audio import UnmeasurableAudio, measure
                         try:
                             measurement = measure(path, start_ms=lo, end_ms=hi, metric=obs.technical_metric)
@@ -248,7 +255,7 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                     checked = measurement["coverage"]
                     complete = checked["start_ms"] <= lo and checked["end_ms"] >= hi
                     actual = measurement["value"]
-                    if not audio_metric and int(check.expected) < 0:
+                    if not audio_metric and not motion_metric and int(check.expected) < 0:
                         raise ValueError("expected duration must be nonnegative")
                     status = numeric_status(actual, check.expected, obs.tolerance, obs.technical_relation,
                                             measurement.get("numeric_resolution", 0))
@@ -263,14 +270,15 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                     mpath.write_text(json.dumps(measurement, sort_keys=True), encoding="utf-8")
                     msha = store.put_file(mpath, media_type="application/json")
                     ev = Evidence(evidence_id=_evid(), asset_id=target.asset_id, asset_sha256=target.sha256,
-                                  artifact_sha256=msha, kind="scan", inspection="exhaustive",
+                                  artifact_sha256=msha, kind="scan",
+                                  inspection="sampled" if motion_metric else "exhaustive",
                                   uri=f"/v1/media/{msha}", extractor_version=measurement["detector_version"],
                                   trace_id=f"tr-qc-{check.assertion_id}",
                                   start_ms=checked["start_ms"], end_ms=checked["end_ms"])
                     add_evidence(ev, role="target", label=f"decoded {obs.technical_metric}",
                                  media_type="application/json")
                     intervals = measurement.get("intervals", [])
-                    row.update(observed=f"{actual} {units}" if audio_metric else str(actual),
+                    row.update(observed=f"{actual} {units}" if audio_metric or motion_metric else str(actual),
                                evidence_ids=[ev.evidence_id], rationale=why,
                                technical_measurement=measurement,
                                focus=intervals[0] if intervals else {"start_ms": lo, "end_ms": hi},
@@ -660,6 +668,15 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
     # stage 2: independent frame-grid checklist (batches run in parallel)
     from concurrent.futures import ThreadPoolExecutor
     grid = list(range(lo + plan.grid_step_ms // 2, hi, plan.grid_step_ms))
+    peak_note = []
+    if plan.peak_frames > 0:
+        try:  # sub-second events fall between a 2 s grid: add the largest decoded changes (no model cost)
+            extra = [t for t in motion.peak_times(src, lo, hi, plan.peak_frames)
+                     if all(abs(t - g) >= 250 for g in grid)]
+            grid = sorted(set(grid) | set(extra))
+            peak_note = [f"{len(extra)} extra frame(s) at the largest frame-to-frame changes"]
+        except (ValueError, RuntimeError) as exc:
+            peak_note = [f"peak-frame sampling not run: {exc}"]
     jobs = []
     for b in range(0, len(grid), anomaly.GRID_BATCH):
         batch = grid[b:b + anomaly.GRID_BATCH]
@@ -748,6 +765,7 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
                limitations=[f"sampled: {anomaly.VIDEO_FPS:g} fps video pass + frames every {anomaly.GRID_STEP_MS/1000:g} s; "
                             "defects shorter than the sampling interval can be missed",
                             f"at most {plan.max_candidates} candidates adjudicated per run",
+                            *peak_note,
                             "all stages use the same model family (muse-spark-1.3); not qualified on a labelled benchmark"]
                            + plan.limits("scan"))
     results[aid] = CheckResult(assertion_id=aid, status=Status(status),

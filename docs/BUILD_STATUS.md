@@ -263,3 +263,10 @@ Verification in this workspace:
 - Scribe broke the s04 tie: Scribe hears "1995" (the locked digit-by-digit year), Meta hears "1999" in both passes -> UNCERTAIN, evidence favours the line being correct.
 - s04b FAIL is now corroborated by two independent providers + word timestamps: the word "hội" is absent from the workprint audio at the 15.83s edit boundary (film team found it present in the source take -> suspected edit trim). Referred to the film team.
 - Known follow-ups: pad dialogue scopes (~1s tail) for lines finishing over a cut (s10 truncation class); vầy/vậy dialect rendering fold (cosmetic; does not change verdicts while another provider differs).
+
+## Deterministic motion/camera checks and video-stream clamp (2026-10-31, branch hackathon-evidence)
+
+- New technical metrics `motion_mean_abs_diff`, `motion_max_step`, `global_motion_px` (`verify/motion.py`; pure Python over ffmpeg grey frames at 4 fps; zero model cost; evidence `inspection: sampled`; cannot-run cases are NOT_CHECKED). Contract schema regenerated.
+- `media.extract_frame` clamps every sample time to the first video stream's duration (container duration is longer when audio outlasts picture) and fails loudly instead of leaving a missing PNG; `tests/test_media_clamp.py` fails on the previous media.py (5 failed) and passes now.
+- Artifact scan adds up to 4 peak-difference frames to the 2 s grid (`RunPlan.peak_frames`, dropped first by the budget plan).
+- Tests run in `proofframe-app:dev` (python 3.12, ffmpeg): `docker run --rm --network none -v <worktree>:/w -w /w -e PYTHONPATH=/w/src:/w proofframe-app:dev python -m pytest -q -p no:cacheprovider` — see commit message for the count.

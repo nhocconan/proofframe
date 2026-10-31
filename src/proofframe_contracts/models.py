@@ -99,7 +99,8 @@ class ObservationSpec(Record):
     vocabulary: tuple[Nonempty, ...] = ()
     technical_metric: Literal["duration_ms", "has_audio", "width", "height",
                               "black_duration_ms", "freeze_duration_ms", "silence_duration_ms",
-                              "integrated_loudness_lufs", "true_peak_dbtp"] | None = None
+                              "integrated_loudness_lufs", "true_peak_dbtp",
+                              "motion_mean_abs_diff", "motion_max_step", "global_motion_px"] | None = None
     tolerance: int | float = Field(default=0, ge=0)
     technical_relation: Literal["equals", "at_most", "at_least"] = "equals"
     # throughout: the attribute must hold in every clear sampled frame of the scope (state).

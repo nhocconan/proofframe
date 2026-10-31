@@ -22,6 +22,7 @@ GRID_STEP_MS = 2000
 GRID_BATCH = 10
 MAX_CANDIDATES = 6
 VIDEO_FPS = 2.0
+PEAK_FRAMES = 4  # extra grid frames at the largest frame-to-frame changes (free, from decoded motion)
 
 TAXONOMY = (
     "Defect categories: "
