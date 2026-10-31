@@ -22,10 +22,10 @@ from proofframe_contracts.policy import evaluate
 from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
-from . import anomaly, continuity, dialogue, motion
+from . import anomaly, continuity, dialogue, motion, reference
 from .compare import CANNOT_DETERMINE, FrameReading, classify, decide, numeric_status, technical
 
-EVALUATOR_VERSION = "pf-verify-0.18(dialogue-asr,scribe-vote,number-canon,scoped-continuity,scratch-cleanup)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+EVALUATOR_VERSION = "pf-verify-0.19(reference-match,single-shot-continuity-not-checked,dialogue-asr,scribe-vote,number-canon,scoped-continuity,scratch-cleanup)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
 # 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
 # 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared; 0.8: cross-shot continuity audit; 0.9: pairwise + swapped-order adjudication; 0.10: intrinsic long-range checks, insert bridging; 0.11: adjudicate up to 24 suspicions; 0.12: assertions evaluated concurrently; 0.13: pre-run budget plan, partial results on a budget stop
 VIDEO_FPS = 1.0
@@ -197,9 +197,12 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
             try:
                 if sha not in shot_cache:
                     shot_cache[sha] = media.detect_shots(store.path_for(sha), pr_c.duration_ms)
-                workload.continuity_shots.append(shot_cache[sha])
+                if len(shot_cache[sha]) >= 2:  # one continuous shot has no cross-shot pairs: no model call
+                    workload.continuity_shots.append(shot_cache[sha])
             except Exception:
                 pass  # the audit itself re-runs detection and reports the error on its own row
+        elif o.kind == "reference_match":
+            workload.reference_checks += 1
         else:
             workload.assertion_minutes.append(max(1, -(-(hi_c - lo_c) // 60_000)))
     remaining = getattr(budget, "remaining", None)
@@ -316,6 +319,22 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                                                           rationale=why, evaluator_version=EVALUATOR_VERSION)
                 return
 
+            if obs.kind == "reference_match":
+                if len(check.reference_asset_ids) != 1:
+                    raise ValueError("reference_match needs exactly one reference asset")
+                ref = by_id[check.reference_asset_ids[0]]
+                if specs[ref.asset_id].role != "canonical_reference" or ref.media_type != "image":
+                    raise ValueError("reference_match needs a hash-bound canonical_reference image asset")
+                out = reference.evaluate(check=check, target=target, reference=ref, pr=probes[target.asset_id],
+                                         src=store.path_for(target.sha256), ref_src=store.path_for(ref.sha256),
+                                         observer=observer, work=work, store=store, row=row,
+                                         add_evidence=add_evidence)
+                row["rationale"] = out.rationale
+                results[check.assertion_id] = CheckResult(
+                    assertion_id=check.assertion_id, status=Status(out.status),
+                    evidence_ids=tuple(dict.fromkeys(out.evidence_ids)) if out.status == "PASS" else (),
+                    rationale=out.rationale[:2000], evaluator_version=EVALUATOR_VERSION)
+                return
             if obs.kind == "cross_shot_continuity":
                 _continuity_audit(check, target, probes[target.asset_id], store.path_for(target.sha256),
                                   observer, work, store, row, results, add_evidence,
@@ -804,6 +823,20 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
         idx = [i for i, (a, b) in enumerate(shots) if b > lo_s and a < hi_s]
         if idx:
             shots = [shots[i] for i in range(max(0, idx[0] - 1), min(len(shots), idx[-1] + 2))]
+    if len(shots) < 2:
+        # Suspicions only exist between shots, so with one continuous shot nothing can be compared: that is not a
+        # clean audit. No model call is made (the continuity log could not produce a usable suspicion either).
+        status = Status.NOT_APPLICABLE if check.approved_exclusion else Status.NOT_CHECKED
+        why = (f"{status.value}: a single continuous shot has no cross-shot pairs to compare (0 shot pairs compared); "
+               "this audit does not look inside a shot.")
+        row.update(observed="not applicable: single continuous shot", evidence_ids=[], findings=[],
+                   shots=[{"start_ms": a, "end_ms": b} for a, b in shots], continuity_log=[], rationale=why,
+                   focus=None, limitations=[f"{len(shots)} shot from FFmpeg hard-cut detection (dissolves may be "
+                                            "missed); 0 shot pairs compared",
+                                            "changes inside one shot are the artifact scan's job, not this audit's"])
+        results[aid] = CheckResult(assertion_id=aid, status=status, rationale=why,
+                                   evaluator_version=EVALUATOR_VERSION)
+        return
     keys = continuity.plan_keyframes(shots)
     paths = {k.label: media.extract_frame(src, k.t_ms, work / f"{aid}-{k.label}.png", width=768) for k in keys}
     hires: dict[int, list[tuple[int, Path]]] = {}

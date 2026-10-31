@@ -6,8 +6,19 @@ from typing import Any
 from proofframe_contracts.models import Contract
 
 
-def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str) -> dict[str, Any]:
+# Cross-shot continuity has nothing to compare inside one continuous shot. Approved up front so the policy
+# excludes it instead of turning every single-shot clip into REVIEW; within-shot changes stay with gen-artifacts.
+SINGLE_SHOT_EXCLUSION = ("not applicable when FFmpeg hard-cut detection finds one continuous shot: no cross-shot "
+                         "pairs exist (dissolves can be missed; within-shot changes are the artifact scan's job)")
+
+
+def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str,
+                        reference: dict[str, str] | None = None) -> dict[str, Any]:
     """Build a video-only scan contract bound to an already-ingested media hash.
+
+    `reference` ({"asset_id", "sha256"}) is an optional still the clip was generated from (image-to-video).
+    It adds one hash-bound `canonical_reference` slot and the `reference-match` check; without it that check
+    does not exist (no reference, no reference claim).
 
     The expected values below are detector limits, not claims about the video's
     intended content. Visual checks deliberately assert only generic anomaly audits.
@@ -17,6 +28,12 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str) -> di
         raise ValueError("probe needs the ingested asset sha256")
     duration_ms = probe.get("duration_ms")
     identity = media_sha256[:12]
+    if reference is not None:
+        if len(str(reference.get("sha256", ""))) != 64 or not reference.get("asset_id"):
+            raise ValueError("reference needs asset_id and the ingested sha256")
+        if reference["asset_id"] == asset_id:
+            raise ValueError("reference asset_id must differ from the video asset_id")
+        identity = f"{identity}-ref{str(reference['sha256'])[:12]}"
     scopes: list[tuple[int, int] | None] = [None]
     if isinstance(duration_ms, int) and duration_ms > 180_000:
         scopes = [(start, min(start + 90_000, duration_ms))
@@ -50,7 +67,25 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str) -> di
             }
             if scope is not None:
                 row["scope"] = {"start_ms": scope[0], "end_ms": scope[1]}
+            if kind == "cross_shot_continuity":
+                row["approved_exclusion"] = SINGLE_SHOT_EXCLUSION
             assertions.append(row)
+
+    if reference is not None:
+        assertions.append({
+            "assertion_id": "reference-match",
+            "source_pointer": "/video_only/reference_match",
+            "target_asset_id": asset_id,
+            "reference_asset_ids": [reference["asset_id"]],
+            "predicate": "clip frames show the same props and setting as the supplied reference still",
+            "expected": "no props added or missing and no setting change beyond camera framing",
+            "blocking": True,
+            "stage": "assembly",
+            "global_sentinel": True,
+            "coverage": {"kind": "sampled", "minimum_items": 1},
+            "observation": {"kind": "reference_match", "subject": "clip frames compared with the reference still",
+                            "attribute": "props and setting versus the reference", "comparator": "reference_match"},
+        })
 
     qc = (
         ("qc-black", "black_duration_ms", "3000", "at_most", "black intervals"),
@@ -97,7 +132,10 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str) -> di
         "tenant_id": tenant,
         "profile": "film",
         "profile_revision": "video-only-no-brief-v1",
-        "assets": [{"asset_id": asset_id, "media_type": "video"}],
+        "assets": [{"asset_id": asset_id, "media_type": "video"}] + (
+            [] if reference is None else [{"asset_id": reference["asset_id"], "media_type": "image",
+                                           "role": "canonical_reference",
+                                           "canonical_sha256": str(reference["sha256"])}]),
         "assertions": assertions,
     })
     return contract.model_dump(mode="json")

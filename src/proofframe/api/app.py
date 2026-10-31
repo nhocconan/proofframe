@@ -344,18 +344,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if not assets or not all(_SHA.match(a["sha256"]) for a in assets):
                 raise ValueError
             if video_only:
-                if "contract_sha256" in body or len(assets) != 1:
+                if ("contract_sha256" in body or len(assets) not in (1, 2)
+                        or len({a["asset_id"] for a in assets}) != len(assets)):
                     raise ValueError
                 with Session() as db:
-                    av = db.scalar(select(AssetVersion).where(
-                        AssetVersion.tenant_id == tenant,
-                        AssetVersion.asset_id == assets[0]["asset_id"],
-                        AssetVersion.sha256 == assets[0]["sha256"]))
-                if av is None or av.media_type != "video":
+                    rows = [db.scalar(select(AssetVersion).where(
+                        AssetVersion.tenant_id == tenant, AssetVersion.asset_id == a["asset_id"],
+                        AssetVersion.sha256 == a["sha256"])) for a in assets]
+                if any(r is None for r in rows):
                     raise ValueError
+                videos = [r for r in rows if r.media_type == "video"]
+                stills = [r for r in rows if r.media_type == "image"]
+                if len(videos) != 1 or len(stills) != len(rows) - 1:
+                    raise ValueError  # one video, plus at most one image reference
+                av = videos[0]
                 auto_body = build_auto_contract(av.asset_id, {
                     "sha256": av.sha256, "duration_ms": av.duration_ms, "has_audio": av.has_audio,
-                }, tenant)
+                }, tenant, reference=({"asset_id": stills[0].asset_id, "sha256": stills[0].sha256}
+                                      if stills else None))
                 auto_model = Contract.model_validate(auto_body)
                 csha = fingerprint(auto_model)
                 _store_contract(tenant, auto_model.contract_id, auto_model.revision, csha, auto_body)
@@ -369,7 +375,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             mode = body.get("run_mode", "live")
             prev = body.get("previous_run_id")
         except (KeyError, TypeError, ValueError):
-            detail = ("body needs mode=video_only, one video asset[{asset_id,sha256}], run_mode"
+            detail = ("body needs mode=video_only, one video asset and optionally one image reference "
+                      "asset[{asset_id,sha256}], run_mode"
                       if video_only else
                       "body needs contract_sha256, assets[{asset_id,sha256}], run_mode")
             raise HTTPException(422, detail)

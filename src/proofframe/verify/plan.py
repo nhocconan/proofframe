@@ -21,6 +21,7 @@ COST = {  # USD per call, measured averages (run-ee24dd80868649a4b3b1)
     "continuity_log": 0.033,
     "continuity_pair": 0.011,
     "continuity_adjudicate": 0.012,
+    "reference_match": 0.012,  # one call: reference still + first/middle/last frames (~$0.0055-0.0097 for 1-2 images)
     "asr_minute": 0.0024,
 }
 MARGIN = 1.10
@@ -75,6 +76,7 @@ class Workload:
     scan_spans_ms: list[int] = field(default_factory=list)       # one entry per artifact scan
     continuity_shots: list[list[tuple[int, int]]] = field(default_factory=list)  # one entry per audit
     asr_minutes: list[int] = field(default_factory=list)  # one entry per transcription pass
+    reference_checks: int = 0                                     # reference-still comparisons (one call each)
 
 
 def _minutes(span_ms: int) -> int:
@@ -85,12 +87,15 @@ def estimate(w: Workload, p: RunPlan) -> float:
     c = COST
     total = sum(m * c["localize_minute"] + c["confirm"] for m in w.assertion_minutes)
     total += sum(m * c["asr_minute"] for m in w.asr_minutes)
+    total += w.reference_checks * c["reference_match"]
     for span in w.scan_spans_ms:
         grid = max(1, span // p.grid_step_ms) + p.peak_frames
         total += _minutes(span) * c["hunt_minute"] + -(-grid // anomaly.GRID_BATCH) * c["grid"]
         total += p.max_candidates * c["scan_adjudicate"]
     for shots in w.continuity_shots:
         n = len(shots)
+        if n < 2:
+            continue  # a single continuous shot has no cross-shot pairs: the audit makes no model call
         keys = continuity.plan_keyframes(shots)
         inserts = sum(1 for i in range(1, n - 1) if shots[i][1] - shots[i][0] <= continuity.INSERT_MAX_MS)
         total += len(continuity.batches(keys)) * c["continuity_log"]
