@@ -66,7 +66,8 @@ def measure(path: Path, *, start_ms: int, end_ms: int, metric: str) -> dict:
         "-map", "[coverage]", "-c:a", "pcm_f64le", "-threads", "1", "-f", "framemd5", "-",
         "-map", "[measured]", "-c:a", "pcm_f64le", "-threads", "1", "-f", "null", "-",
     ])
-    first, checked_end = _coverage(proc.stdout.decode(errors="strict"), span)
+    first, checked_end = _coverage(proc.stdout.decode(errors="strict"), span,
+                                   max_gap_ms=175.0, frame_bound=False)
     if first > 1.0:
         raise ValueError("decoded audio does not cover requested start")
     loudness, peak = _summary(proc.stderr.decode(errors="strict"))

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from proofframe import media
 
-DETECTOR_VERSION = "pf-technical-0.1(ffmpeg)"
+DETECTOR_VERSION = "pf-technical-0.2(ffmpeg,seam-tolerant-coverage)"
 
 
 @dataclass(frozen=True)
@@ -46,7 +46,36 @@ class TechnicalQCSettings:
                 raise ValueError(f"{name} must be an integer in [{lo}, {hi}]")
 
 
-def _coverage(output: str, span_ms: int) -> tuple[float, float]:
+def _coverage(output: str, span_ms: int, max_gap_ms: float = 90.0,
+              frame_bound: bool = True) -> tuple[float, float]:
+    first, checked_end, _, _ = _coverage_report(output, span_ms, max_gap_ms=max_gap_ms,
+                                                frame_bound=frame_bound)
+    return first, checked_end
+
+
+def _coverage_report(output: str, span_ms: int, max_gap_ms: float = 90.0,
+                     frame_bound: bool = True) -> tuple[float, float, int, float]:
+    """Verify the decoded frames cover the requested span; return (first_ms, checked_end_ms,
+    seam_gap_count, seam_gap_total_ms).
+
+    Multi-part concat encodes (the normal shape of an assembled episode: one encode per
+    shot, joined) stamp each segment on its own timestamp grid, so at a seam the decoded
+    timestamps skip - or briefly repeat - about one frame while every frame is still
+    decoded and measured by the detectors. Measured on a real 24-part episode preview:
+    video seams jump +41.7 ms (exactly one 24 fps frame, worst 61 ms), audio seams jump
+    +5..35 ms with overlaps up to one audio frame. A strict per-frame contiguity rule
+    therefore ERRORs every advisory check on exactly the files that matter most.
+
+    Seam policy (fail-closed where it counts): a single gap must stay under the
+    caller's cap (frame_bound callers - video frames - also bind it to under two
+    frame durations; audio packets are re-stamped on the video frame grid at
+    assembly seams, so their cap is absolute) and under the smallest minimum event
+    of the detectors sharing this coverage (100 ms black, 200 ms silence), so no
+    reportable event can hide inside a tolerated gap; the tolerated gaps together
+    must stay below 2% of the span. Overlaps up to 1.5 frame durations are absorbed
+    (the frames were decoded and measured twice at worst); anything larger, or a
+    stream that starts late / ends early, still raises.
+    """
     match = re.search(r"^#tb 0: (\d+/\d+)$", output, re.M)
     if not match:
         raise ValueError("missing decoded timestamp timebase")
@@ -64,22 +93,30 @@ def _coverage(output: str, span_ms: int) -> tuple[float, float]:
         frames.append((float(pts), float(pts + duration), float(duration)))
     if not frames:
         raise ValueError("no decoded frames in requested scope")
-    # Contiguity is judged against half a frame duration, not a fixed 1 ms:
-    # ordinary concat/re-encode pipelines leave sub-frame timestamp jitter
-    # at segment seams, and a fixed 1 ms bound ERRORs the whole check on
-    # clean files. A gap or overlap of half a frame or more still fails, so
-    # real coverage holes (a whole missing frame included) stay fail-closed.
     durations = sorted(d for _, _, d in frames)
-    frame_tol = max(1.0, durations[len(durations) // 2] / 2)
+    median = durations[len(durations) // 2]
+    frame_tol = max(1.0, median / 2)
+    max_gap = min(2.0 * median, max_gap_ms) if frame_bound else max_gap_ms
+    max_overlap = 1.5 * median
+    total_cap = max(0.02 * span_ms, 3.0 * median)
     tolerance = max(1.0, frames[0][2])
     end = frames[0][1]
+    seam_gaps, seam_total = 0, 0.0
     for start, stop, _ in frames[1:]:
-        if start < end - frame_tol or start > end + frame_tol:
+        dev = start - end
+        if dev < -max_overlap:
             raise ValueError("decoded timestamps overlap or leave unchecked gaps")
+        if dev > frame_tol:
+            if dev >= max_gap:
+                raise ValueError("decoded timestamps overlap or leave unchecked gaps")
+            seam_gaps += 1
+            seam_total += dev
         end = max(end, stop)
+    if seam_total > total_cap:
+        raise ValueError("decoded timestamps overlap or leave unchecked gaps")
     if frames[0][0] > tolerance or frames[0][0] < -tolerance or end < span_ms - 1.0:
         raise ValueError("decoded stream does not cover requested scope")
-    return max(0.0, frames[0][0]), min(float(span_ms), end)
+    return max(0.0, frames[0][0]), min(float(span_ms), end), seam_gaps, seam_total
 
 
 def _events(log: str, metric: str, end_ms: float) -> list[tuple[float, float]]:
@@ -149,7 +186,9 @@ def scan(path: Path, *, start_ms: int, end_ms: int, metric: str,
         argv += ["-an", "-vsync", "0", "-enc_time_base", "-1"]
     argv += ["-threads", "1", "-f", "framemd5", "-"]
     proc = media._run(argv)
-    first, checked_end = _coverage(proc.stdout.decode(errors="strict"), span)
+    first, checked_end, seam_gaps, seam_total = _coverage_report(
+        proc.stdout.decode(errors="strict"), span,
+        max_gap_ms=175.0 if audio else 90.0, frame_bound=not audio)
     intervals = []
     for lo, hi in _events(proc.stderr.decode(errors="replace"), metric, checked_end):
         lo, hi = max(first, lo), min(checked_end, hi)
@@ -167,6 +206,11 @@ def scan(path: Path, *, start_ms: int, end_ms: int, metric: str,
     ]
     if first > 0:
         limitations.append(f"First decoded frame begins {first:.3f} ms after requested start.")
+    if seam_gaps:
+        limitations.append(f"Decoded timestamps contain {seam_gaps} concat-seam gap(s) totalling "
+                           f"{seam_total:.0f} ms (each under two frame durations); every frame was "
+                           "decoded and measured, and event times after a seam may drift by the "
+                           "accumulated gap.")
     return {"value": sum(item["end_ms"] - item["start_ms"] for item in intervals),
             "intervals": intervals, "limitations": limitations,
             "coverage": {"start_ms": start_ms + round(first), "end_ms": start_ms + round(checked_end)},

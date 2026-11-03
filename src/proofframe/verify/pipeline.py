@@ -22,11 +22,11 @@ from proofframe_contracts.policy import evaluate
 from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
-from . import anomaly, continuity, dialogue, motion, reference
+from . import anomaly, continuity, declared, dialogue, motion, reference
 from .compare import (CANNOT_DETERMINE, FrameReading, classify, coverage_grid, decide, decide_coverage,
                       numeric_status, technical)
 
-EVALUATOR_VERSION = "pf-verify-0.20(reference-match,single-shot-continuity-not-checked,dialogue-asr,scribe-vote,scribe-language,number-canon,scoped-continuity,scratch-cleanup,text-coverage)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
+EVALUATOR_VERSION = "pf-verify-0.21(reference-match,single-shot-continuity-not-checked,dialogue-asr,scribe-vote,scribe-language,number-canon,scoped-continuity,scratch-cleanup,text-coverage,case-adjudication)"  # 0.2: skip not_visible segments, absorb short tail; 0.3: input-seek frames;
 # 0.4: temporal=occurs (event) semantics + dense uniform grid for event checks;
 # 0.5: generation_artifact_scan (undeclared defect discovery); 0.6: limb-ownership category; 0.7: ownership never auto-cleared; 0.8: cross-shot continuity audit; 0.9: pairwise + swapped-order adjudication; 0.10: intrinsic long-range checks, insert bridging; 0.11: adjudicate up to 24 suspicions; 0.12: assertions evaluated concurrently; 0.13: pre-run budget plan, partial results on a budget stop
 VIDEO_FPS = 1.0
@@ -139,6 +139,7 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                      lineage: dict[str, dict] | None = None) -> RunOutcome:
     started = _now()
     contract = Contract.model_validate(contract_json)
+    declared_elements = declared.from_contract(contract)
     contract_sha = fingerprint(contract)
     by_id = {a.asset_id: a for a in assets}
     specs = {a.asset_id: a for a in contract.assets}
@@ -347,7 +348,7 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
             if obs.kind == "cross_shot_continuity":
                 _continuity_audit(check, target, probes[target.asset_id], store.path_for(target.sha256),
                                   observer, work, store, row, results, add_evidence,
-                                  plan=plan, shots=shot_cache.get(target.sha256))
+                                  plan=plan, shots=shot_cache.get(target.sha256), declared=declared_elements)
                 return
             if obs.kind == "dialogue":
                 pr = probes.get(target.asset_id)
@@ -438,7 +439,8 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
                 return
             if obs.kind == "generation_artifact_scan":
                 _artifact_scan(check, target, probes[target.asset_id], store.path_for(target.sha256),
-                               observer, work, store, row, results, add_evidence, plan=plan)
+                               observer, work, store, row, results, add_evidence, plan=plan,
+                               declared=declared_elements)
                 return
 
             # ---- model-assisted visual check
@@ -684,7 +686,7 @@ def run_verification(*, run_id: str, run_mode: str, contract_json: dict[str, Any
 
 
 def _artifact_scan(check, target, pr, src, observer, work, store, row, results, add_evidence,
-                   plan: RunPlan | None = None) -> None:
+                   plan: RunPlan | None = None, declared: list | None = None) -> None:
     plan = plan or RunPlan()
     lo = check.scope.start_ms if check.scope else 0
     hi = min(check.scope.end_ms if check.scope else pr.duration_ms, pr.duration_ms)
@@ -797,10 +799,25 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
             # limb ownership is not a qualified model capability (passes have contradicted each other on owner
             # attribution); an off-screen owner is never auto-cleared — it becomes a human review item.
             v = {**v, "verdict": "review", "explanation": "[auto-clear disabled for ownership] " + v.get("explanation", "")}
+        if c.category == "ownership" and v.get("verdict") == "confirmed" \
+                and v.get("limb_continues_off_frame") == "yes":
+            # An insert whose limbs all continue off-frame has an owner the frame simply does not
+            # show; hands holding the scene's prop in an insert are the normal grammar of film.
+            # Attribution stays a human call — never a blocking defect. A limb that ENDS mid-frame
+            # (limb_continues_off_frame != yes) can still confirm and block.
+            v = {**v, "verdict": "review",
+                 "explanation": "[insert shot: every limb continues off-frame] " + v.get("explanation", "")}
+        if declared and c.category in ("object", "continuity") and v.get("verdict") == "confirmed":
+            hit = declared.match(c.description, declared)
+            if hit:
+                v = {**v, "verdict": "review",
+                     "explanation": f"[entity declared in the case contract ({hit}); downgraded to "
+                                    "human review] " + v.get("explanation", "")}
         cited = [evs[l].evidence_id for l in v.get("evidence_labels", []) if l in evs and l != ctx_label]
         findings.append({"candidate": n + 1, "start_ms": c.start_ms, "end_ms": c.end_ms, "category": c.category,
                          "severity": v.get("severity", c.severity), "verdict": v.get("verdict", "unclear"),
                          "description": c.description, "sources": sorted(c.sources),
+                         "limb_continues_off_frame": v.get("limb_continues_off_frame"),
                          "innocent_explanation_considered": v.get("innocent_explanation_considered", ""),
                          "explanation": v.get("explanation", ""),
                          "evidence_ids": cited or [evs[l].evidence_id for l in labels]})
@@ -836,7 +853,8 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
 
 
 def _continuity_audit(check, target, pr, src, observer, work, store, row, results, add_evidence,
-                      plan: RunPlan | None = None, shots: list[tuple[int, int]] | None = None) -> None:
+                      plan: RunPlan | None = None, shots: list[tuple[int, int]] | None = None,
+                      declared: list | None = None) -> None:
     plan = plan or RunPlan()
     from concurrent.futures import ThreadPoolExecutor
 
@@ -991,8 +1009,12 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
                          "severity": v.get("severity", sp["severity"]),
                          "verdict": continuity.finding_status(sp["kind"], v.get("verdict", "unclear"),
                                                               v.get("severity", sp["severity"]),
-                                                              v.get("same_entity", "unclear")),
+                                                              v.get("same_entity", "unclear"),
+                                                              v.get("framing_comparable", "yes"),
+                                                              v.get("opposite_face_possible", "no")),
                          "same_entity": v.get("same_entity", "unclear"),
+                         "framing_comparable": v.get("framing_comparable", "yes"),
+                         "opposite_face_possible": v.get("opposite_face_possible", "no"),
                          "description": f"{sp['entity']}: {sp['description']}", "sources": sorted(sp["sources"]),
                          # adjudication saw the later shot first: map its descriptions back to A/B
                          "shot_a_description": v.get("shot_b_description", ""),
@@ -1000,6 +1022,17 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
                          "innocent_explanation_considered": v.get("innocent_explanation_considered", ""),
                          "explanation": v.get("explanation", ""), "evidence_ids": evs})
 
+    suppressed = 0
+    if declared:
+        for f in findings:
+            if f["verdict"] == "confirmed":
+                hit = declared.match(f["entity"], declared)
+                if hit:
+                    f["verdict"] = "review"
+                    f["suppressed_reason"] = (f"entity declared in the case contract ({hit}); that assertion "
+                                              "is the qualified judge of this element - human review, not a "
+                                              "blocking audit finding")
+                    suppressed += 1
     status, why = anomaly.decide_scan(findings, candidates_total=len(ranked),
                                       adjudicated=len(findings), frames_scanned=len(keys), calls_failed=failed,
                                       budget_skipped=skipped, calls_total=calls)
@@ -1028,6 +1061,8 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
                             f"{len(pairs)} shot pairs compared (adjacent + registry first-vs-later); other pairs not compared",
                             f"at most {plan.max_suspicions} suspicions adjudicated (in swapped shot order)",
                             "identity drift is never auto-FAIL (face identity is not a qualified capability)"]
+                           + ([f"{suppressed} confirmed finding(s) downgraded to review: the entity is declared "
+                               "in the case contract and is judged by its own assertion"] if suppressed else [])
                            + plan.limits("continuity"))
     results[aid] = CheckResult(assertion_id=aid, status=Status(status),
                                evidence_ids=tuple(dict.fromkeys(ev_ids)) if status in ("PASS", "FAIL") else (),

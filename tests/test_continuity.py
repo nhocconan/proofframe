@@ -137,3 +137,32 @@ def test_long_films_still_get_registry_pairs():
                                                              {"frame": "S70", "description": ""}]}]
     pairs = continuity.plan_pairs(n, log, {"S1": 0, "S70": 69}, [(i * 5000, (i + 1) * 5000) for i in range(n)])
     assert (0, 69) in {(a, b) for a, b, _ in pairs}
+
+
+def test_incomparable_framing_cannot_confirm_design_or_scale():
+    # ECU vs wide: the adjudicator's own geometry answer caps the finding at review
+    assert continuity.finding_status("prop_design", "confirmed", "major", "yes",
+                                     framing_comparable="no") == "review"
+    assert continuity.finding_status("prop_scale", "confirmed", "major", "yes",
+                                     framing_comparable="unclear") == "review"
+    # wardrobe is not a framing-scale comparison and is unaffected
+    assert continuity.finding_status("wardrobe", "confirmed", "major", "yes",
+                                     framing_comparable="no") == "confirmed"
+
+
+def test_opposite_face_appearance_cannot_confirm():
+    # a part mounted on the far face appearing from the opposite side is geometry, not error
+    assert continuity.finding_status("prop_design", "confirmed", "major", "yes",
+                                     opposite_face_possible="yes") == "review"
+    assert continuity.finding_status("presence", "confirmed", "major", "yes",
+                                     opposite_face_possible="yes") == "review"
+    # with the geometry ruled out, the same finding still confirms
+    assert continuity.finding_status("prop_design", "confirmed", "major", "yes",
+                                     framing_comparable="yes",
+                                     opposite_face_possible="no") == "confirmed"
+
+
+def test_adjudication_schema_carries_geometry_fields():
+    _, schema = continuity.adjudicate_question("radio", "prop_design", ["A1"], ["B1"])
+    assert "framing_comparable" in schema["required"]
+    assert "opposite_face_possible" in schema["required"]

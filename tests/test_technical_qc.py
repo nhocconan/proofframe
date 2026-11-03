@@ -165,3 +165,43 @@ def test_coverage_still_rejects_real_gap():
     out = _cov_output([(0, 40), (40, 40), (160, 40)])  # 80 ms hole in coverage
     with pytest.raises(ValueError):
         _coverage(out, 200)
+
+
+def test_coverage_tolerates_one_frame_concat_seams():
+    from proofframe.verify.technical import _coverage_report
+    # 24 fps grid (42 ms frames): at each seam the timestamps skip exactly one frame
+    # slot while every frame is present - the measured shape of a multi-part concat.
+    spans = [(0, 42), (42, 42), (126, 42), (168, 42), (252, 42), (294, 42)]
+    start, end, gaps, total = _coverage_report(_cov_output(spans), 336)
+    assert (start, end) == (0, 336)
+    assert gaps == 2 and total == 84
+
+
+def test_coverage_rejects_two_frame_gap():
+    from proofframe.verify.technical import _coverage_report
+    spans = [(0, 42), (42, 42), (168, 42)]  # two whole frames missing at the seam
+    with pytest.raises(ValueError):
+        _coverage_report(_cov_output(spans), 210)
+
+
+def test_coverage_rejects_seam_total_over_cap():
+    from proofframe.verify.technical import _coverage_report
+    # 20 one-frame seams inside a 2 s span: 840 ms of gaps is 42% of the span, far
+    # over the 2% allowance - indistinguishable from scattered frame loss.
+    spans = []
+    pts = 0
+    for i in range(40):
+        spans.append((pts, 42))
+        pts += 84 if i % 2 == 0 else 42
+    with pytest.raises(ValueError):
+        _coverage_report(_cov_output(spans), 2000)
+
+
+def test_coverage_absorbs_one_frame_overlap_but_rejects_scramble():
+    from proofframe.verify.technical import _coverage, _coverage_report
+    ok = _cov_output([(0, 42), (42, 42), (63, 42), (105, 42)])  # one frame re-stamped at a seam
+    start, end, gaps, total = _coverage_report(ok, 147)
+    assert end == 147 and gaps == 0
+    bad = _cov_output([(0, 42), (42, 42), (0, 42), (42, 42)])  # stream restarts: 2-frame backward jump
+    with pytest.raises(ValueError):
+        _coverage(bad, 84)
