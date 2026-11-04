@@ -58,7 +58,7 @@ URLs below identify primary sources. Repository defaults can change; pin reviewe
 
 The industrial wave also inspected the installed FFmpeg `-h filter=ebur128` options and executed real/synthetic audio checks. The FFmpeg web filter page timed out on this pass; local execution establishes supported flags, not standards conformance. New code is self-written; no third-party source or weights were copied.
 
-See `IMPLEMENTATION_SOTA_AUDIT_2026-10-29.md` for current local checks and WHY-003 historical evidence. The original research boundary below describes the initial handoff session.
+See `IMPLEMENTATION_AUDIT_2026-10-29.md` for current local checks and WHY-003 historical evidence. The original research boundary below describes the initial handoff session.
 
 The review read primary documentation and selected implementation files using web and GitHub tools. Downloading whole repositories into this runtime failed because the runtime could not resolve github.com. Consequently, NO upstream test suite, paid API, video generation job, or model evaluation was run here. The contract harness shipped in this package is newly authored and tested separately; its test report is not a perception benchmark.
 

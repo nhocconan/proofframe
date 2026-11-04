@@ -1,8 +1,8 @@
 # Implementation audit, 2026-10-29
 
-ProofFrame is a working research prototype with real integration evidence; SOTA detection quality and industrial production readiness are not established. The current architecture uses several relevant research techniques, but the recorded results include substantial misses and no held-out comparison. This is an assessment, not a new implementation or a perception benchmark.
+ProofFrame is a working research prototype with real integration evidence; detection quality has not been benchmarked against published methods, and industrial production readiness is not established. The current architecture uses several relevant research techniques, but the recorded results include substantial misses and no held-out comparison. This is an assessment, not a new implementation or a perception benchmark.
 
-Subsequent implementation on the same date added decoded black/freeze/silence QC, offline one-to-one scoring with judge controls, local provider-schema validation and entity-correspondence guards. Current implementation and verification are in `BUILD_STATUS.md` and `RUNBOOK.md`. The gap table below records the pre-improvement snapshot; no held-out accuracy or SOTA claim has since been established.
+Subsequent implementation on the same date added decoded black/freeze/silence QC, offline one-to-one scoring with judge controls, local provider-schema validation and entity-correspondence guards. Current implementation and verification are in `BUILD_STATUS.md` and `RUNBOOK.md`. The gap table below records the pre-improvement snapshot; no held-out accuracy or superiority over published methods has since been established.
 
 ## Evidence and scope
 
@@ -43,7 +43,7 @@ Sources were checked online on 2026-10-29. Research abstracts and upstream docum
 | [Beneath the Scores, 2026-09-24](https://arxiv.org/abs/2609.28991) | Stage-intervention protocol tests where downstream hallucinations originate | Ablate localization, observation and judgment independently using human-supplied evidence on evaluation-only runs |
 | [Citation-verifier ablation, 2026-08-16](https://arxiv.org/abs/2608.15574) | On its task, direct verification and blind-caption/general-judge variants can fail; an NLI alternative is evaluated | Test claim-support verification as an ablation; text entailment cannot recover details a visual observer missed |
 
-No source inspected establishes that ProofFrame is best in class. FFmpeg scene scoring is a practical baseline; the earlier continuity review's blanket claim that TransNetV2 is the accuracy leader should be read only within its cited comparison, not as a current universal SOTA claim.
+No source inspected establishes that ProofFrame outperforms existing tools or published methods. FFmpeg scene scoring is a practical baseline; the earlier continuity review's blanket claim that TransNetV2 is the accuracy leader should be read only within its cited comparison, not as proof that it leads all current published methods.
 
 ## What to reuse from WHY-003
 

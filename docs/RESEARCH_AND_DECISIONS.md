@@ -100,7 +100,7 @@ Observed: VideoMind provides trained temporal grounding and verification roles; 
 
 Learn: find a plausible interval, gather sharper evidence, then reassess. Increase time resolution for a brief gesture and spatial detail for an ambiguous prop; do not blindly resubmit the full film.
 
-Limit: the published implementation depends on specialized model training and its own tasks. Replacing those models with generic API calls does not reproduce its benchmark results. ActiveLook is an exploratory reference here, not independently established SOTA.
+Limit: the published implementation depends on specialized model training and its own tasks. Replacing those models with generic API calls does not reproduce its benchmark results. ActiveLook is an exploratory reference here, not a leading published method.
 
 Decision: adopt the search/refinement policy as an engineering hypothesis and evaluate it with an ablation against fixed sampling. Keep refinement bounded by evidence needs and budget.
 

@@ -141,7 +141,7 @@ Further technical details, evaluation runs, and operational guides:
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — writing contracts, decoded technical QC, repair round-trips, test commands, deployment
 - [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) — HTTP routes and `ReportEnvelope` schema
 - [`docs/RUN_HISTORY.md`](docs/RUN_HISTORY.md) and [`docs/BUILD_STATUS.md`](docs/BUILD_STATUS.md) — every recorded live run, cost, and test gate
-- [`docs/SOTA_CONTINUITY_REVIEW.md`](docs/SOTA_CONTINUITY_REVIEW.md) and [`docs/SOURCE_REGISTER.md`](docs/SOURCE_REGISTER.md) — prior art and academic references
+- [`docs/CONTINUITY_REVIEW.md`](docs/CONTINUITY_REVIEW.md) and [`docs/SOURCE_REGISTER.md`](docs/SOURCE_REGISTER.md) — prior art and academic references
 
 ### Credits and license
 

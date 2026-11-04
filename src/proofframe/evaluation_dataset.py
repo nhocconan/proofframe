@@ -260,7 +260,7 @@ def evaluate_dataset(manifest_path: str | Path, *, split: str = "holdout") -> di
             "human_adjudicated_holdout_cases": holdout_provenance["human_adjudicated"],
             "human_adjudicated_holdout_available": bool(holdout_provenance["human_adjudicated"]),
             "all_selected_labels_human_adjudicated": provenance["human_adjudicated"] == len(cohort),
-            "scope": "offline frozen-cohort diagnostic; no model qualification or universal SOTA verdict",
+            "scope": "offline frozen-cohort diagnostic; no model qualification or general superiority verdict",
             "limitations": ["Sample counts describe this cohort only; no production generalization or statistical sufficiency established.",
                             "Source grouping and frozen labels do not prove absence of previous tuning or contamination.",
                             "Annotation provenance is manifest-declared; agent drafts and synthetic labels are not human ground truth.",

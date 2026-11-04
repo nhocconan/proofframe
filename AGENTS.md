@@ -6,7 +6,7 @@ Never replace an existing project instruction file blindly. Reconcile these inst
 
 Truth boundaries are mandatory: approved intent, observations, hypotheses, policy and repairs are separate. Output-version changes must not rewrite approved intent. Missing/error/unsupported checks cannot PASS. The verifier may recommend but cannot publish. Do not leak producer claims or seeded labels into perception prompts.
 
-Synthetic fixtures are explicitly synthetic; real integrations need real execution evidence. Do not call contract tests a perception benchmark. Do not claim savings, reliability or SOTA without an appropriate comparison.
+Synthetic fixtures are explicitly synthetic; real integrations need real execution evidence. Do not call contract tests a perception benchmark. Do not claim savings, reliability or superiority without an appropriate comparison.
 
 Secrets stay in environment/authorized stores. Paid execution requires configured bounds. No host administration, arbitrary shell repairs, unapproved publication, private footage in Git, or silent provider fallback. Use a bounded workflow rather than an unbounded multi-agent conversation.
 

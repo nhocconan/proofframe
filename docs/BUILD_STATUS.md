@@ -23,7 +23,7 @@
 - Temporary source/build snapshots and transfer archives removed after verification; logs retained in private/improvement/results. Existing service containers remained running throughout.
 
 ## Independent implementation audit (2026-10-29)
-- Assessment: `docs/IMPLEMENTATION_SOTA_AUDIT_2026-10-29.md`; SOTA and production qualification remain unestablished. Reviewed WHY-003 historical art/final reviews and owner-rejection lessons; no private media copied.
+- Assessment: `docs/IMPLEMENTATION_AUDIT_2026-10-29.md`; detection quality against published methods and production qualification remain unestablished. Reviewed WHY-003 historical art/final reviews and owner-rejection lessons; no private media copied.
 - `docker exec proofframe-api-1 python -m pytest -q -p no:cacheprovider` → **123 passed, 1 Starlette/AnyIO deprecation warning, 21.04 s**. SHA-256 comparison: 41/41 checkout Python source/test files match the tested container.
 - Host checks unavailable: `python -m pytest -q -p no:cacheprovider` → 127 (python absent); `python3 -m pytest -q -p no:cacheprovider` → 1 (pytest absent).
 - `docker exec proofframe-web-1 npx tsc --noEmit` → 1, compiler help; runtime image omits source/tsconfig. Fresh frontend build/type check not performed. No runtime code changed, no paid calls, no new services, no new perception benchmark.
@@ -112,7 +112,7 @@ Measured so far: 2 clips, 1 confirmed true defect found, 1 owner-reported defect
 positives, 1 REVIEW item on real footage (robot hand). This is not a benchmark; precision/recall are unmeasured.
 
 ## Cross-shot continuity audit (evaluator 0.8–0.12, live)
-SOTA review: `docs/SOTA_CONTINUITY_REVIEW.md` (research worker; sources marked verified/secondary/unverified).
+Prior-art review: `docs/CONTINUITY_REVIEW.md` (research worker; sources marked verified/secondary/unverified).
 Implementation (self-written): `src/proofframe/verify/continuity.py`, `media.detect_shots` (FFmpeg scene score;
 12/12 hard cuts found on the owner clip vs manual count). Dev labels frozen before implementation:
 `private/evaluation/labels_*.json` (gitignored) (11 defects, 8 must-catch; agent-labelled, owner unconfirmed).

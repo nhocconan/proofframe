@@ -1,4 +1,4 @@
-# Cross-shot continuity: state-of-the-art review
+# Cross-shot continuity review
 
 Research date: 2026-10-27. Method: web search plus page fetches (arXiv abstract pages, GitHub READMEs, vendor pages). Full PDFs were mostly NOT read; where a metric or number comes from a search-result summary rather than a page I fetched, it is marked **(secondary)**. Anything I could not confirm is marked **(unverified)**. Extends `RESEARCH_AND_DECISIONS.md` and `SOURCE_REGISTER.md` (S01-S28); it does not repeat them.
 
@@ -47,7 +47,7 @@ Research date: 2026-10-27. Method: web search plus page fetches (arXiv abstract 
 | Embedding metrics and LLM identity judgements disagree; authors attribute gap to embedding limits (secondary) | https://arxiv.org/pdf/2605.15199v1 | Embeddings = triage signal, never the verdict |
 | Perceptual judgment bias: judge can follow description over visuals (S27) | https://arxiv.org/html/2606.02578 | Already covered; keep producer text out of observation |
 
-## 3. State of the art vs marketing
+## 3. Published work vs marketing
 
 Genuinely supported by published work (still mostly generation-side, self-evaluated):
 - Entity-centric memory with per-shot entity schedules is the dominant 2026 approach to cross-shot consistency (EntityBench, VideoMemory, EM-Vid, GroundShot). Consistency degrades with recurrence distance (EntityBench).
@@ -91,7 +91,7 @@ Ranking assumes self-written code, Meta APIs plus SAM 3.1, bounded paid calls.
 6. **Embedding triage only (medium value, low effort).** DINOv2/CLIP similarity on SAM crops to rank candidate pairs and to match entities across shots; ArcFace only for photoreal faces. Never emit a verdict from embedding distance: EntityBench and MuSS report embedding/LLM disagreement and copy-paste artifacts. Stylised characters: embedding behaviour on them was not found in my search (unverified).
 7. **Verify-before-store registry (medium value, low effort).** Only add an entity appearance to the registry after a quality gate (visible, unoccluded, crop confidence); the first valid appearance is the anchor. Credit: GroundShot (https://arxiv.org/abs/2606.20799) and EntityBench's fidelity gate. Prevents a bad first observation poisoning later comparisons.
 8. **Object state timeline (medium value, medium effort).** Extend the existing shattered/intact check across shots with allowed transitions (intact to broken allowed, reverse not). Idea: TC-Bench temporal states (S13).
-9. **Evaluation set before more features (high value, medium effort, do early).** Encode the human's 8 defects as labeled cases with hard negatives (legit location change, legit costume change, close-up vs wide) and injected controls; report recall, false positives per minute, and judge order-flip rate. LogiShot-style judge-vs-human numbers are the model for reporting honestly (https://arxiv.org/pdf/2608.08820). Do not claim SOTA.
+9. **Evaluation set before more features (high value, medium effort, do early).** Encode the human's 8 defects as labeled cases with hard negatives (legit location change, legit costume change, close-up vs wide) and injected controls; report recall, false positives per minute, and judge order-flip rate. LogiShot-style judge-vs-human numbers are the model for reporting honestly (https://arxiv.org/pdf/2608.08820). Do not claim superiority over published methods.
 10. **Defer:** full temporal scene graph or vector-DB memory (no evidence it beats rec. 2-3 for verification), ownership-of-hand linkage beyond a pair-judge question, trained evaluators (PersonaShot-style distillation needs data).
 
 ## 6. Open questions
