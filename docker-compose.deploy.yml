@@ -8,7 +8,7 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: balancer
-      traefik.http.routers.proofframe.rule: Host(`test-proof-frame.dic.app`)
+      traefik.http.routers.proofframe.rule: Host(`proofframe.dic.app`)
       traefik.http.routers.proofframe.entrypoints: websecure
       traefik.http.routers.proofframe.tls.certresolver: myresolver
       traefik.http.routers.proofframe.middlewares: proofframe-auth

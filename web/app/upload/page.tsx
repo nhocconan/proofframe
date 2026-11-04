@@ -13,13 +13,14 @@ export default function Upload() {
       r.push(`/runs/${j.run_id}`);
     } catch (x) { setErr((x as Error).message); setBusy(false); }
   }
-  return (<form onSubmit={submit} className="card">
+  return (<form onSubmit={submit} className="card upload-card">
     <h1>New verification</h1>
+    <p className="upload-lead">Submit a rendered MP4 clip and its approved contract JSON to start a verification run.</p>
     <label>asset_id <input type="text" name="asset_id" required defaultValue="shot-01" /></label>
     <label>Video (mp4) <input type="file" name="file" accept="video/mp4" required /></label>
     <label>Contract JSON (upload) <input type="file" name="contract_file" accept="application/json,.json" /></label>
     <label>...or paste contract JSON <textarea name="contract_text" /></label>
-    <button className="primary" disabled={busy}>{busy ? "Submitting..." : "Upload and verify"}</button>
+    <button className="primary btn-primary" disabled={busy}>{busy ? "Submitting..." : "Upload and verify"}</button>
     {err && <div className="err" data-testid="upload-error" style={{ marginTop: 8 }}>{err}</div>}
   </form>);
 }

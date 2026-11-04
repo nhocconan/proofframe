@@ -10,6 +10,17 @@ verify stays visibly unresolved. It is built on Meta's Muse Spark multimodal mod
 > nothing here is production-qualified yet. See [limitations](#limitations).
 
 
+## Live demo
+
+**https://proofframe.dic.app** — the web workbench, running the code in this repository.
+
+Reviewer login (basic auth, shared demo account):
+- User: `demo`
+- Password: `pf-demo-2026`
+
+The demo instance runs with low spend caps. Sample contracts live in [`demo/`](demo/);
+footage is not bundled with the repository.
+
 ## Demo
 
 A 3-minute walkthrough (hackathon submission video) shows the product end to end: a real defect
