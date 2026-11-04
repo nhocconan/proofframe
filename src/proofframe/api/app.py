@@ -347,6 +347,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if ("contract_sha256" in body or len(assets) not in (1, 2)
                         or len({a["asset_id"] for a in assets}) != len(assets)):
                     raise ValueError
+                brief_text = body.get("brief_text")
+                if brief_text is not None and (not isinstance(brief_text, str) or len(brief_text) > 20_000):
+                    raise ValueError
                 with Session() as db:
                     rows = [db.scalar(select(AssetVersion).where(
                         AssetVersion.tenant_id == tenant, AssetVersion.asset_id == a["asset_id"],
@@ -361,7 +364,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 auto_body = build_auto_contract(av.asset_id, {
                     "sha256": av.sha256, "duration_ms": av.duration_ms, "has_audio": av.has_audio,
                 }, tenant, reference=({"asset_id": stills[0].asset_id, "sha256": stills[0].sha256}
-                                      if stills else None))
+                                      if stills else None), brief_text=brief_text)
                 auto_model = Contract.model_validate(auto_body)
                 csha = fingerprint(auto_model)
                 _store_contract(tenant, auto_model.contract_id, auto_model.revision, csha, auto_body)

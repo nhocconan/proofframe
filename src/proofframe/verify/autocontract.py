@@ -12,19 +12,37 @@ from proofframe_contracts.models import Contract
 # excludes it instead of turning every single-shot clip into REVIEW; within-shot changes stay with gen-artifacts.
 SINGLE_SHOT_EXCLUSION = ("not applicable when FFmpeg hard-cut detection finds one continuous shot: no cross-shot "
                          "pairs exist (dissolves can be missed; within-shot changes are the artifact scan's job)")
+MAX_BRIEF_CHARS = 20_000
+BRIEF_DELIMITER = "\n\n[Brief / context]\n"
+
+
+def extract_brief_context(subject: str | None) -> str | None:
+    """Return the optional creator brief appended to a video-only scan subject, or None."""
+    if not subject or BRIEF_DELIMITER not in subject:
+        return None
+    _, _, text = subject.partition(BRIEF_DELIMITER)
+    return text.strip() or None
 
 
 def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str,
-                        reference: dict[str, str] | None = None) -> dict[str, Any]:
+                        reference: dict[str, str] | None = None,
+                        brief_text: str | None = None) -> dict[str, Any]:
     """Build a video-only scan contract bound to an already-ingested media hash.
 
     `reference` ({"asset_id", "sha256"}) is an optional still the clip was generated from (image-to-video).
     It adds one hash-bound `canonical_reference` slot and the `reference-match` check; without it that check
     does not exist (no reference, no reference claim).
 
+    `brief_text` is optional plain-text context (script, brief or notes) appended to the scan assertions'
+    observation subjects so the checking model sees intended context and reviewers see it in the stored contract.
+
     The expected values below are detector limits, not claims about the video's
     intended content. Visual checks deliberately assert only generic anomaly audits.
     """
+    if brief_text is not None:
+        if not isinstance(brief_text, str) or len(brief_text) > MAX_BRIEF_CHARS:
+            raise ValueError(f"brief_text must be a string of at most {MAX_BRIEF_CHARS} chars")
+    brief = brief_text.strip() if brief_text else ""
     media_sha256 = str(probe["sha256"])
     if len(media_sha256) != 64:
         raise ValueError("probe needs the ingested asset sha256")
@@ -53,6 +71,7 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str,
          "cross-shot continuity", "continuity_audit"),
     )
     for base_id, pointer, predicate, expected, kind, subject, attribute, comparator in audits:
+        obs_subject = f"{subject}{BRIEF_DELIMITER}{brief}" if brief else subject
         for index, scope in enumerate(scopes, 1):
             row: dict[str, Any] = {
                 "assertion_id": base_id if scope is None else f"{base_id}-{index:02d}",
@@ -64,7 +83,7 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str,
                 "stage": "assembly",
                 "global_sentinel": True,
                 "coverage": {"kind": "sampled", "minimum_items": 1},
-                "observation": {"kind": kind, "subject": subject, "attribute": attribute,
+                "observation": {"kind": kind, "subject": obs_subject, "attribute": attribute,
                                 "comparator": comparator},
             }
             if scope is not None:
@@ -139,7 +158,7 @@ def build_auto_contract(asset_id: str, probe: dict[str, Any], tenant: str,
         "revision": 1,
         "tenant_id": tenant,
         "profile": "film",
-        "profile_revision": "video-only-no-brief-v1",
+        "profile_revision": "video-only-brief-v1" if brief else "video-only-no-brief-v1",
         "assets": [{"asset_id": asset_id, "media_type": "video"}] + (
             [] if reference is None else [{"asset_id": reference["asset_id"], "media_type": "image",
                                            "role": "canonical_reference",

@@ -23,6 +23,7 @@ from .. import media
 from ..interfaces import AssetInput, Budget, RunOutcome, Store
 from .plan import RunPlan, Workload, fit as fit_plan
 from . import anomaly, continuity, declared, dialogue, motion, reference
+from .autocontract import extract_brief_context
 from .compare import (CANNOT_DETERMINE, FrameReading, classify, coverage_grid, decide, decide_coverage,
                       numeric_status, technical)
 
@@ -633,6 +634,8 @@ def _run_verification_impl(*, run_id: str, run_mode: str, contract_json: dict[st
     envelope_labels = [labels.get(run_mode, run_mode)]
     if contract.profile_revision == "video-only-no-brief-v1":
         envelope_labels.append("VIDEO_ONLY_NO_BRIEF")
+    elif contract.profile_revision == "video-only-brief-v1":
+        envelope_labels.append("VIDEO_ONLY_WITH_BRIEF")
     envelope = {
         "schema_version": "proofframe.envelope.v0.1",
         "run": {"run_id": run_id, "run_mode": run_mode, "profile": contract.profile,
@@ -704,7 +707,8 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
         return ev
 
     # stage 1: blind video hunt
-    q_hunt, s_hunt = anomaly.hunt_question()
+    ctx = extract_brief_context(check.observation.subject if check.observation else None)
+    q_hunt, s_hunt = anomaly.hunt_question(context=ctx)
     row["observation_question"] = q_hunt
     for (w0, w1) in media.windows(lo, hi):
         proxy = media.make_proxy(src, w0, w1, work / f"{aid}-{w0}.mp4", width=854)
@@ -746,7 +750,7 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
 
     def grid_call(job):
         labels, batch, items = job
-        q_grid, s_grid = anomaly.grid_question(labels)
+        q_grid, s_grid = anomaly.grid_question(labels, context=ctx)
         return job, observer.observe_images(images=items, question=q_grid, schema=s_grid, schema_name="grid",
                                             purpose=f"grid:{aid}")
 
@@ -779,7 +783,7 @@ def _artifact_scan(check, target, pr, src, observer, work, store, row, results, 
         ctx_label = f"A{n + 1}.ctx"
         paths = [media.extract_frame(src, t, work / f"{aid}-{lab}.png", width=1280) for lab, t in zip(labels, times)]
         ctx_path = media.extract_frame(src, ctx_t, work / f"{aid}-{ctx_label}.png", width=1280)
-        q_adj, s_adj = anomaly.adjudicate_question(c.category, c.description, labels, ctx_label)
+        q_adj, s_adj = anomaly.adjudicate_question(c.category, c.description, labels, ctx_label, context=ctx)
         res = observer.observe_images(images=list(zip(labels, paths)) + [(ctx_label, ctx_path)], question=q_adj,
                                       schema=s_adj, schema_name="adjudicate", purpose=f"adjudicate:{aid}")
         row["trace_ids"].append(res.trace["trace_id"])
@@ -912,11 +916,12 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
         return True
 
     # stage 1: blind continuity log (registry of recurring entities)
+    ctx = extract_brief_context(check.observation.subject if check.observation else None)
     for batch in continuity.batches(keys):
         labels = [k.label for k in batch]
         lines = [f"{k.label}: shot {k.shot + 1}, t={k.t_ms / 1000:.1f}s (shot {shots[k.shot][0] / 1000:.1f}-"
                  f"{shots[k.shot][1] / 1000:.1f}s)" for k in batch]
-        q, sch = continuity.log_question(labels, lines)
+        q, sch = continuity.log_question(labels, lines, context=ctx)
         row["observation_question"] = q
         res = observer.observe_images(images=[(l, paths[l]) for l in labels], question=q, schema=sch,
                                       schema_name="continuity_log", purpose=f"continuity_log:{aid}")
@@ -940,9 +945,9 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
         a, b, ents = pair
         la, lb = [f"P{a + 1}.{i + 1}" for i in range(2)], [f"Q{b + 1}.{i + 1}" for i in range(2)]
         if continuity.is_long_range(a, b, ents, shots):
-            q, sch = continuity.entity_question(la, lb, ents)
+            q, sch = continuity.entity_question(la, lb, ents, context=ctx)
         else:
-            q, sch = continuity.pair_question(la, lb, ents)
+            q, sch = continuity.pair_question(la, lb, ents, context=ctx)
         imgs = list(zip(la, [p for _, p in hires[a]])) + list(zip(lb, [p for _, p in hires[b]]))
         return pair, observer.observe_images(images=imgs, question=q, schema=sch, schema_name="continuity_pair",
                                              purpose=f"continuity_pair:{aid}")
@@ -975,7 +980,7 @@ def _continuity_audit(check, target, pr, src, observer, work, store, row, result
         n, sp = item
         a, b = sp["shot_a"], sp["shot_b"]
         lb, la = [f"C{n + 1}.X{i + 1}" for i in range(2)], [f"C{n + 1}.Y{i + 1}" for i in range(2)]
-        q, sch = continuity.adjudicate_question(sp["entity"], sp["kind"], lb, la)
+        q, sch = continuity.adjudicate_question(sp["entity"], sp["kind"], lb, la, context=ctx)
         imgs = list(zip(lb, [p for _, p in shot_frames(b)])) + list(zip(la, [p for _, p in shot_frames(a)]))
         return n, sp, observer.observe_images(images=imgs, question=q, schema=sch, schema_name="continuity_adjudicate",
                                               purpose=f"continuity_adjudicate:{aid}")

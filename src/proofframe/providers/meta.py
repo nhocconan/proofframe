@@ -113,7 +113,7 @@ class MetaObserver:
     # ---------- public capabilities
     def observe_video(self, *, video: Path, question: str, schema: dict, schema_name: str,
                       fps: float, duration_s: float, purpose: str) -> CallResult:
-        est_tokens = int(duration_s * fps * VIDEO_TOKENS_PER_FRAME_EST) + PROMPT_TOKENS_EST
+        est_tokens = int(duration_s * fps * VIDEO_TOKENS_PER_FRAME_EST) + max(PROMPT_TOKENS_EST, (len(question) + 2) // 3)
         try:
             res_id = self.budget.reserve(run_id=self.run_id, provider="meta", model=self.model,
                                          amount_usd=self._upper_bound(est_tokens), purpose=purpose)
@@ -140,7 +140,7 @@ class MetaObserver:
 
     def observe_images(self, *, images: list[tuple[str, Path]], question: str, schema: dict,
                        schema_name: str, purpose: str) -> CallResult:
-        est_tokens = len(images) * IMAGE_TOKENS_EST + PROMPT_TOKENS_EST
+        est_tokens = len(images) * IMAGE_TOKENS_EST + max(PROMPT_TOKENS_EST, (len(question) + 2) // 3)
         try:
             res_id = self.budget.reserve(run_id=self.run_id, provider="meta", model=self.model,
                                          amount_usd=self._upper_bound(est_tokens), purpose=purpose)

@@ -410,3 +410,13 @@ stores the offset directly (start_time 0.083 under ffprobe 6.1 and 7), with PCM
 audio so AAC priming does not add a second, negative audio-start pathology.
 media.py is unchanged. Verified: ubuntu-24.04 CI recipe 444 passed / 0 failed;
 dev image (ffmpeg 7) 419 passed / 25 skipped / 0 failed.
+
+## Addendum 2026-11-04 — video-first web upload, optional plain-text brief, README rewrite
+
+- Web upload (`web/app/upload/page.tsx`, `web/app/api/upload/route.ts`, `web/app/globals.css`): contract JSON is now optional (tucked into a collapsed `<details>` block). Video MP4 is the only required input; `asset_id` auto-fills from the uploaded filename stem when blank; optional `brief_text` textarea passes plain-text context to `POST /v1/verifications` (`mode="video_only"`).
+- Python API + auto-contract + pipeline (`src/proofframe/api/app.py`, `src/proofframe/verify/autocontract.py`, `src/proofframe/verify/anomaly.py`, `src/proofframe/verify/continuity.py`, `src/proofframe/verify/pipeline.py`, `src/proofframe/providers/meta.py`): `POST /v1/verifications` in `video_only` mode accepts optional string `brief_text` (<= 20,000 chars; non-strings and >20,000 chars rejected with 422). When absent/blank, `build_auto_contract` output and prompts remain byte-identical (`video-only-no-brief-v1`). When supplied, `brief_text` is stored in the scan assertions' `observation.subject` (`video-only-brief-v1`, changing the template digest so re-scans never 409) and appended as a delimited `<context>` note to anomaly and continuity prompts.
+- Gates run (local macOS `.venv` has no `pytest` installed; Python tests run in `proofframe-app:dev`):
+  - `cd web && npx tsc --noEmit && npx next build` -> exit 0.
+  - `docker compose exec -T api pytest -q -p no:cacheprovider tests/test_autocontract.py tests/test_api_http.py tests/test_artifact_scan.py tests/test_continuity.py tests/test_meta_adapter.py` -> **72 passed, 0 failed** (19.47 s).
+  - `docker run --rm --network proofframe_default -e DATABASE_URL=postgresql+psycopg://proofframe:proofframe@db:5432/proofframe -e PYTHONPATH=/w/src:/w -v $PWD/{src,tests,scripts,schemas,demo,examples,profiles,validation,pyproject.toml}:/w/...:ro -w /w proofframe-app:dev python -m pytest -q -p no:cacheprovider` -> **458 passed, 0 failed** (75.18 s).
+- Live smoke run (`POST http://127.0.0.1:3000/api/upload`, video + `brief_text` only, no `asset_id`, no contract): `run-26020c5bb5524d28a258` -> `succeeded`, decision `BLOCK`, estimated cost `$0.646309`, contract `auto-7f9e22579446-t0c7d09ae` (`9da108cc21de...`) confirmed storing the brief and 56/56 outbound Meta calls carrying it.

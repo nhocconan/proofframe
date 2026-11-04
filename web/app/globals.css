@@ -159,7 +159,16 @@ button.primary:disabled{opacity:.55;cursor:not-allowed}
 .upload-card h1{margin:0 0 6px;font-size:22px;font-weight:800;letter-spacing:-.02em}
 .upload-lead{margin:0 0 18px;color:var(--mut);font-size:14px}
 .upload-card label{margin:14px 0;font-weight:600;font-size:13px}
+.upload-card .opt{font-weight:400;color:var(--mut)}
+.upload-card .req{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--blu);margin-left:4px}
+.upload-card .field-hint{display:block;margin-top:3px;font-weight:400;font-size:12.5px;line-height:1.45;color:var(--mut)}
 .upload-card input[type=text],.upload-card input[type=file],.upload-card textarea{display:block;width:100%;margin-top:6px;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg)}
+.upload-card textarea.brief-input{min-height:96px;font-family:inherit;resize:vertical}
+.upload-advanced{margin:16px 0 14px;border:1px solid var(--bd);border-radius:8px;padding:10px 12px;background:var(--bg)}
+.upload-advanced>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--mut);user-select:none}
+.upload-advanced[open]>summary{color:var(--fg);margin-bottom:8px}
+.upload-advanced-body p.field-hint{margin:0 0 10px}
+.upload-advanced-body input[type=file],.upload-advanced-body textarea{background:var(--card)}
 .upload-card button.primary{margin-top:6px}
 @media(max-width:680px){
   .brand-sep{display:none}
